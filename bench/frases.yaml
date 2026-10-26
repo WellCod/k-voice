@@ -1,0 +1,39 @@
+# Frases de referência para benchmark de síntese e teste cego.
+# Cada item gera áudio em todos os motores avaliados.
+# Ver docs/teste-cego.md para a metodologia.
+
+frases:
+  - id: cumprimento_simples
+    texto: "Olá, tudo bem? Meu nome é Ana."
+    categoria: cumprimento
+
+  - id: valor_monetario
+    texto: "O valor total da sua fatura é de R$ 1.234,50."
+    categoria: normalizacao
+
+  - id: data_hora
+    texto: "Sua consulta está marcada para o dia 15 de novembro às 14h30."
+    categoria: normalizacao
+
+  - id: cpf
+    texto: "Por favor, confirme o CPF 123.456.789-09 para prosseguirmos."
+    categoria: normalizacao
+
+  - id: telefone
+    texto: "Você pode nos ligar no número (11) 98765-4321 a qualquer momento."
+    categoria: normalizacao
+
+  - id: frase_longa
+    texto: >
+      Identificamos uma pendência no seu contrato referente ao mês de outubro.
+      Para regularizar a situação sem juros adicionais, o pagamento deve ser
+      efetuado até o dia 30 deste mês.
+    categoria: frase_longa
+
+  - id: siglas
+    texto: "Seu CPF está vinculado ao CNPJ da empresa cadastrada no sistema."
+    categoria: siglas
+
+  - id: numero_ordinal
+    texto: "Esta é a 3ª vez que tentamos contato. Por favor, retorne a ligação."
+    categoria: normalizacao
