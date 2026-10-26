@@ -13,3 +13,4 @@ dist/
 *.ogg
 *.opus
 bench/outputs/
+bench/referencias/

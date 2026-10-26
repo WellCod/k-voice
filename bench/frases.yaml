@@ -1,39 +1,316 @@
 # Frases de referência para benchmark de síntese e teste cego.
-# Cada item gera áudio em todos os motores avaliados.
-# Ver docs/teste-cego.md para a metodologia.
+# Cada item gera áudio em todos os motores avaliados (docs/teste-cego.md).
+# Textos não passam por normalização aqui — normalização é responsabilidade do benchmark.
 
 frases:
-  - id: cumprimento_simples
+
+  # --- Saudação e abertura ---
+
+  - id: saudacao_01
     texto: "Olá, tudo bem? Meu nome é Ana."
-    categoria: cumprimento
+    categoria: saudacao
 
-  - id: valor_monetario
+  - id: saudacao_02
+    texto: "Boa tarde, eu me chamo Ana e estou aqui para te ajudar."
+    categoria: saudacao
+
+  - id: saudacao_03
+    texto: "Alô, boa tarde! Posso falar com o titular da conta?"
+    categoria: saudacao
+
+  - id: saudacao_04
+    texto: "Olá! Estou ligando para dar um retorno sobre o seu atendimento."
+    categoria: saudacao
+
+  - id: saudacao_05
+    texto: "Bom dia! Vou verificar as informações da sua conta agora."
+    categoria: saudacao
+
+  - id: saudacao_06
+    texto: "Boa noite! Em que posso te ajudar hoje?"
+    categoria: saudacao
+
+  # --- Confirmação curta ---
+
+  - id: confirmacao_01
+    texto: "Perfeito."
+    categoria: confirmacao
+
+  - id: confirmacao_02
+    texto: "Entendi, só um instante."
+    categoria: confirmacao
+
+  - id: confirmacao_03
+    texto: "Certo, já estou verificando."
+    categoria: confirmacao
+
+  - id: confirmacao_04
+    texto: "Pode deixar, vou resolver isso para você."
+    categoria: confirmacao
+
+  - id: confirmacao_05
+    texto: "Anotado. Mais alguma coisa?"
+    categoria: confirmacao
+
+  - id: confirmacao_06
+    texto: "Ok, aguarda um momento por favor."
+    categoria: confirmacao
+
+  # --- Moeda e valores ---
+
+  - id: moeda_01
     texto: "O valor total da sua fatura é de R$ 1.234,50."
-    categoria: normalizacao
+    categoria: normalizacao_moeda
 
-  - id: data_hora
+  - id: moeda_02
+    texto: "Identificamos um crédito de R$ 89,00 na sua conta."
+    categoria: normalizacao_moeda
+
+  - id: moeda_03
+    texto: "O boleto vence amanhã no valor de R$ 3.500,00."
+    categoria: normalizacao_moeda
+
+  - id: moeda_04
+    texto: "A parcela mensal é de R$ 299,90 por mês."
+    categoria: normalizacao_moeda
+
+  - id: moeda_05
+    texto: "Seu limite disponível é de R$ 12.000,00."
+    categoria: normalizacao_moeda
+
+  - id: moeda_06
+    texto: "A diferença entre os valores é de apenas R$ 0,50."
+    categoria: normalizacao_moeda
+
+  # --- Data e hora ---
+
+  - id: data_01
     texto: "Sua consulta está marcada para o dia 15 de novembro às 14h30."
-    categoria: normalizacao
+    categoria: normalizacao_data
 
-  - id: cpf
+  - id: data_02
+    texto: "O prazo final para pagamento é 31 de dezembro de 2025."
+    categoria: normalizacao_data
+
+  - id: data_03
+    texto: "O contrato foi assinado em 1º de março de 2024."
+    categoria: normalizacao_data
+
+  - id: data_04
+    texto: "Você tem um agendamento no dia 5/11 às 9h da manhã."
+    categoria: normalizacao_data
+
+  - id: data_05
+    texto: "O serviço estará disponível a partir das 18h de segunda-feira."
+    categoria: normalizacao_data
+
+  # --- CPF e CNPJ ---
+
+  - id: cpf_01
     texto: "Por favor, confirme o CPF 123.456.789-09 para prosseguirmos."
-    categoria: normalizacao
+    categoria: normalizacao_cpf
 
-  - id: telefone
+  - id: cpf_02
+    texto: "O cadastro está vinculado ao CPF 987.654.321-00."
+    categoria: normalizacao_cpf
+
+  - id: cnpj_01
+    texto: "O CNPJ da empresa cadastrada é 12.345.678/0001-99."
+    categoria: normalizacao_cnpj
+
+  - id: cnpj_02
+    texto: "Preciso do CNPJ para emitir a nota fiscal da sua empresa."
+    categoria: normalizacao_cnpj
+
+  # --- Telefone ---
+
+  - id: telefone_01
     texto: "Você pode nos ligar no número (11) 98765-4321 a qualquer momento."
-    categoria: normalizacao
+    categoria: normalizacao_telefone
 
-  - id: frase_longa
+  - id: telefone_02
+    texto: "Vou registrar o seu celular como (21) 99123-4567."
+    categoria: normalizacao_telefone
+
+  - id: telefone_03
+    texto: "O telefone fixo para contato é (11) 3456-7890."
+    categoria: normalizacao_telefone
+
+  - id: telefone_04
+    texto: "Caso queira retornar, ligue para 0800 123 4567, é gratuito."
+    categoria: normalizacao_telefone
+
+  # --- Endereço e CEP ---
+
+  - id: endereco_01
+    texto: "O CEP informado é 01310-100, na Avenida Paulista."
+    categoria: normalizacao_endereco
+
+  - id: endereco_02
+    texto: "O seu endereço está registrado como Rua das Flores, número 42, São Paulo."
+    categoria: normalizacao_endereco
+
+  - id: endereco_03
+    texto: "Vou atualizar o CEP para 04578-000."
+    categoria: normalizacao_endereco
+
+  # --- Siglas ---
+
+  - id: siglas_01
+    texto: "Seu CPF está vinculado ao CNPJ da empresa cadastrada no sistema."
+    categoria: normalizacao_siglas
+
+  - id: siglas_02
+    texto: "O boleto pode ser pago via PIX, TED ou DOC."
+    categoria: normalizacao_siglas
+
+  - id: siglas_03
+    texto: "A apólice está registrada na SUSEP sob o número informado."
+    categoria: normalizacao_siglas
+
+  - id: siglas_04
+    texto: "O SLA de atendimento para esse tipo de ocorrência é de até 48 horas."
+    categoria: normalizacao_siglas
+
+  - id: siglas_05
+    texto: "Você pode consultar o extrato pelo aplicativo ou via internet banking."
+    categoria: normalizacao_siglas
+
+  # --- Frases longas ---
+
+  - id: longa_01
     texto: >
       Identificamos uma pendência no seu contrato referente ao mês de outubro.
       Para regularizar a situação sem juros adicionais, o pagamento deve ser
       efetuado até o dia 30 deste mês.
     categoria: frase_longa
 
-  - id: siglas
-    texto: "Seu CPF está vinculado ao CNPJ da empresa cadastrada no sistema."
-    categoria: siglas
+  - id: longa_02
+    texto: >
+      Para concluir a portabilidade do seu seguro, precisamos de três documentos:
+      o comprovante de residência atualizado, o documento de identificação com foto
+      e a apólice atual com o número de registro.
+    categoria: frase_longa
 
-  - id: numero_ordinal
+  - id: longa_03
+    texto: >
+      Com base no seu histórico de utilização e no perfil do veículo informado,
+      identificamos que você se qualifica para o nosso plano de fidelidade,
+      que oferece desconto progressivo de até 20% na renovação anual.
+    categoria: frase_longa
+
+  - id: longa_04
+    texto: >
+      A análise do sinistro foi concluída e o valor aprovado para reembolso
+      é de R$ 2.850,00. O depósito será realizado na conta cadastrada
+      em até cinco dias úteis após a assinatura do termo de encerramento.
+    categoria: frase_longa
+
+  - id: longa_05
+    texto: >
+      Vou te explicar como funciona o processo. Primeiro, você acessa o aplicativo
+      e tira uma foto dos documentos. Depois, o sistema faz a análise automática
+      e, em até duas horas, você recebe a confirmação por e-mail ou SMS.
+    categoria: frase_longa
+
+  # --- Perguntas ---
+
+  - id: pergunta_01
+    texto: "Você consegue me confirmar o número do seu CPF, por favor?"
+    categoria: pergunta
+
+  - id: pergunta_02
+    texto: "Qual é o melhor horário para te retornar caso a ligação caia?"
+    categoria: pergunta
+
+  - id: pergunta_03
+    texto: "Você já recebeu o boleto por e-mail ou prefere que eu reenvie?"
+    categoria: pergunta
+
+  - id: pergunta_04
+    texto: "Tem mais alguma dúvida que eu possa esclarecer?"
+    categoria: pergunta
+
+  - id: pergunta_05
+    texto: "Você prefere parcelar em 3 vezes de R$ 150,00 ou pagar à vista com 5% de desconto?"
+    categoria: pergunta
+
+  # --- Empatia ---
+
+  - id: empatia_01
+    texto: "Sinto muito pelo transtorno que isso causou."
+    categoria: emocao_empatia
+
+  - id: empatia_02
+    texto: "Entendo como essa situação pode ser frustrante, e vou fazer tudo para resolver."
+    categoria: emocao_empatia
+
+  - id: empatia_03
+    texto: "Peço desculpas pela demora. Vou priorizar o seu caso agora."
+    categoria: emocao_empatia
+
+  - id: empatia_04
+    texto: "Compreendo a sua preocupação, e estou aqui para te ajudar a resolver isso."
+    categoria: emocao_empatia
+
+  - id: empatia_05
+    texto: "Lamento que tenha passado por isso. Vou verificar o que aconteceu."
+    categoria: emocao_empatia
+
+  # --- Entusiasmo ---
+
+  - id: entusiasmo_01
+    texto: "Que ótima notícia! Você foi aprovado para o nosso programa de benefícios."
+    categoria: emocao_entusiasmo
+
+  - id: entusiasmo_02
+    texto: "Fico muito feliz em te informar que o seu pedido foi concluído com sucesso!"
+    categoria: emocao_entusiasmo
+
+  - id: entusiasmo_03
+    texto: "Excelente! Essa é a melhor opção para o seu perfil."
+    categoria: emocao_entusiasmo
+
+  - id: entusiasmo_04
+    texto: "Parabéns! Você atingiu o nível Gold no nosso programa de fidelidade."
+    categoria: emocao_entusiasmo
+
+  # --- Firmeza ---
+
+  - id: firmeza_01
+    texto: "Esse prazo não pode ser prorrogado. O vencimento é definitivamente amanhã."
+    categoria: emocao_firmeza
+
+  - id: firmeza_02
+    texto: "Preciso que você confirme os dados agora para darmos continuidade."
+    categoria: emocao_firmeza
+
+  - id: firmeza_03
+    texto: "Infelizmente não consigo fazer essa alteração sem a documentação completa."
+    categoria: emocao_firmeza
+
+  - id: firmeza_04
+    texto: "Essa é a política da empresa e não está dentro da minha alçada alterar."
+    categoria: emocao_firmeza
+
+  # --- Hesitações e marcadores de fala ---
+
+  - id: hesitacao_01
+    texto: "Então... deixa eu ver aqui no sistema."
+    categoria: hesitacao
+
+  - id: hesitacao_02
+    texto: "Hmm, um momento, vou verificar essa informação para você."
+    categoria: hesitacao
+
+  - id: hesitacao_03
     texto: "Esta é a 3ª vez que tentamos contato. Por favor, retorne a ligação."
-    categoria: normalizacao
+    categoria: hesitacao
+
+  - id: hesitacao_04
+    texto: "Bom, o que eu posso te dizer é que... o processo leva em torno de 3 dias úteis."
+    categoria: hesitacao
+
+  - id: hesitacao_05
+    texto: "Tá, então vou anotar aqui: nome completo, CPF e o número do protocolo, certo?"
+    categoria: hesitacao
