@@ -3,7 +3,7 @@ name = "kvoice"
 version = "0.1.0"
 description = "Servidor de síntese de voz com streaming para LiveKit e lote para WhatsApp"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["numpy>=2.0"]
 
 [tool.uv]
 package = true
