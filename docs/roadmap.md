@@ -36,7 +36,7 @@ Gate: teste de carga no WebSocket com TTFA p95 ≤ 350 ms no pico previsto, canc
 
 - [x] PR 11 — `feat(livekit): plugin de tts com streaming, cancelamento e fallback para elevenlabs`
 - [x] PR 12 — `feat(api): roteamento por cliente e fallback no servidor`
-- [ ] PR 13 — `test: carga ponta a ponta com chamadas sip simuladas`
+- [x] PR 13 — `test: carga ponta a ponta com chamadas sip simuladas`
 - [ ] Rampa 1% → 10% do tráfego real, 7 dias em cada degrau.
 
 Gate: métricas de [operacao.md](operacao.md) dentro da meta a 10% por 7 dias, sem piora nas métricas de negócio.
