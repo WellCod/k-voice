@@ -77,9 +77,7 @@ async def criar_token(client_id: uuid.UUID, body: TokenCreate, db: DbSession) ->
 )
 async def listar_tokens(client_id: uuid.UUID, db: DbSession) -> list[ApiToken]:
     result = await db.execute(
-        select(ApiToken)
-        .where(ApiToken.client_id == client_id)
-        .order_by(ApiToken.created_at.desc())
+        select(ApiToken).where(ApiToken.client_id == client_id).order_by(ApiToken.created_at.desc())
     )
     return list(result.scalars().all())
 
