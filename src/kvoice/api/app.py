@@ -3,9 +3,10 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from kvoice.api.routers import admin, voices
+from kvoice.api.routers import admin, tts, voices
 from kvoice.db.session import init_db
 from kvoice.settings import get_settings
 
@@ -21,10 +22,15 @@ def create_app() -> FastAPI:
 
     app.include_router(admin.router)
     app.include_router(voices.router)
+    app.include_router(tts.router)
 
     @app.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/metrics")
+    def metrics() -> Response:
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     return app
 
