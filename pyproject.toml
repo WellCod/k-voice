@@ -3,7 +3,15 @@ name = "kvoice"
 version = "0.1.0"
 description = "Servidor de síntese de voz com streaming para LiveKit e lote para WhatsApp"
 requires-python = ">=3.12"
-dependencies = ["numpy>=2.0"]
+dependencies = [
+    "numpy>=2.0",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic-settings>=2.0",
+    "sqlalchemy[asyncio]>=2.0",
+    "alembic>=1.14",
+    "asyncpg>=0.30",
+]
 
 [tool.uv]
 package = true
@@ -15,6 +23,8 @@ dev = [
     "pytest-asyncio>=0.25",
     "pyyaml>=6.0",
     "ruff>=0.9",
+    "httpx>=0.28",
+    "testcontainers[postgres]>=4.7",
 ]
 bench = [
     "numpy>=2.0",
