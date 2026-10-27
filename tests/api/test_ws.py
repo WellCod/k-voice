@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from kvoice.api.routing import RoutingDecision
 from kvoice.api.ws_proto import (
     CancelMsg,
     EndMsg,
@@ -22,7 +23,6 @@ from kvoice.api.ws_proto import (
     TextMsg,
     parse_client_msg,
 )
-from kvoice.api.routing import RoutingDecision
 from kvoice.engine.registry import clear_engine, set_engine
 from kvoice.engine.types import AudioChunk, Capacity, SynthOptions, TTSEngine, Voice
 

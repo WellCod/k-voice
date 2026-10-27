@@ -12,7 +12,6 @@ from kvoice.api.routing import RoutingDecision, decide_engine
 from kvoice.db.models import RoutingMode, RoutingRule
 from kvoice.engine.types import Capacity
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
