@@ -5,13 +5,16 @@ import contextlib
 import time
 import uuid
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Query, WebSocket
+from fastapi import APIRouter, HTTPException, Query, Response, WebSocket, status
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from sqlalchemy import select
 from starlette.websockets import WebSocketDisconnect
 
 from kvoice.api.auth import hash_token
+from kvoice.api.deps import AuthDep, DbSession
 from kvoice.api.metrics import (
     streams_active,
     streams_cancelled,
@@ -21,14 +24,20 @@ from kvoice.api.metrics import (
     ttfa_seconds,
 )
 from kvoice.api.routing import RoutingDecision, decide_engine
+from kvoice.api.schemas import BatchRequest, BatchResponse
 from kvoice.api.ws_proto import CancelMsg, EndMsg, StartMsg, TextMsg, parse_client_msg
-from kvoice.db.models import ApiToken, Client
+from kvoice.audio import encode as encode_audio
+from kvoice.audio import pcm_duration_ms
+from kvoice.db.models import ApiToken, BatchJob, BatchStatus, Client
 from kvoice.db.models import Voice as DbVoice
 from kvoice.db.session import session_factory
 from kvoice.engine.types import SynthOptions, Voice
 from kvoice.normalize import normalize, normalize_incremental
+from kvoice.storage import get_storage
 
 router = APIRouter(tags=["tts"])
+
+_EXT: dict[str, str] = {"ogg_opus": "ogg", "mp3_44100": "mp3", "wav_24000": "wav"}
 
 _FLUSH = "\x00"
 
@@ -89,6 +98,92 @@ async def _gravar_uso(
             )
     except Exception:
         pass
+
+
+@router.post("/v1/tts", response_model=None)
+async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> Response:
+    client, token = auth
+    if not token.has_scope("tts:batch"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Escopo 'tts:batch' necessário",
+        )
+
+    orm_voice = await db.get(DbVoice, body.voice_id)
+    if orm_voice is None or not orm_voice.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voz não encontrada")
+
+    decision = await decide_engine(client.id, body.voice_id)
+    if decision is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Motor indisponível",
+        )
+
+    voice = Voice(
+        id=decision.effective_voice_id,
+        name=orm_voice.name,
+        style_prompt=orm_voice.style_prompt,
+    )
+    opts = SynthOptions(format=body.format)
+    normalized = normalize(body.text)
+
+    audio = await decision.engine.synthesize(normalized, voice, opts)
+
+    encoded, content_type = encode_audio(audio.data, audio.sample_rate, body.format)
+    duration_ms = round(pcm_duration_ms(audio.data, audio.sample_rate), 1)
+    request_id = uuid.uuid4()
+
+    if body.delivery == "bytes":
+        job = BatchJob(
+            id=request_id,
+            client_id=client.id,
+            voice_id=body.voice_id,
+            status=BatchStatus.done,
+            input_text=body.text,
+            format=body.format,
+            duration_ms=duration_ms,
+            completed_at=datetime.now(UTC),
+        )
+        db.add(job)
+        await db.commit()
+        return Response(
+            content=encoded,
+            media_type=content_type,
+            headers={
+                "X-Request-Id": str(request_id),
+                "X-Duration-Ms": str(duration_ms),
+            },
+        )
+
+    key = f"outputs/{request_id}.{_EXT[body.format]}"
+    storage = get_storage()
+    await storage.upload(key, encoded, content_type)
+    url = await storage.presigned_url(key, body.url_ttl_s)
+
+    job = BatchJob(
+        id=request_id,
+        client_id=client.id,
+        voice_id=body.voice_id,
+        status=BatchStatus.done,
+        input_text=body.text,
+        format=body.format,
+        output_key=key,
+        duration_ms=duration_ms,
+        completed_at=datetime.now(UTC),
+        expires_at=datetime.now(UTC) + timedelta(seconds=body.url_ttl_s),
+    )
+    db.add(job)
+    await db.commit()
+
+    return JSONResponse(
+        BatchResponse(
+            request_id=request_id,
+            url=url,
+            duration_ms=duration_ms,
+            characters=len(body.text),
+        ).model_dump(mode="json")
+    )
 
 
 @router.websocket("/v1/tts/stream")
