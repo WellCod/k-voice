@@ -20,17 +20,16 @@ from kvoice.api.metrics import (
     streams_started,
     ttfa_seconds,
 )
+from kvoice.api.routing import RoutingDecision, decide_engine
 from kvoice.api.ws_proto import CancelMsg, EndMsg, StartMsg, TextMsg, parse_client_msg
 from kvoice.db.models import ApiToken, Client
 from kvoice.db.models import Voice as DbVoice
 from kvoice.db.session import session_factory
-from kvoice.engine.registry import _ADMISSION_MAX_QUEUE, get_engine
-from kvoice.engine.types import SynthOptions, TTSEngine, Voice
+from kvoice.engine.types import SynthOptions, Voice
 from kvoice.normalize import normalize, normalize_incremental
 
 router = APIRouter(tags=["tts"])
 
-# Sentinel inserido na fila de texto para forçar flush imediato do normalizador.
 _FLUSH = "\x00"
 
 
@@ -67,6 +66,8 @@ async def _gravar_uso(
     audio_ms: float,
     ttfa_ms: float,
     total_ms: float,
+    fallback: bool = False,
+    fallback_reason: str | None = None,
 ) -> None:
     try:
         from kvoice.api.deps import registrar_uso
@@ -83,9 +84,11 @@ async def _gravar_uso(
                 ttfa_ms=ttfa_ms,
                 total_ms=total_ms,
                 engine=engine_name,
+                fallback=fallback,
+                fallback_reason=fallback_reason,
             )
     except Exception:
-        pass  # uso não crítico — não derrubar a chamada por falha de medição
+        pass
 
 
 @router.websocket("/v1/tts/stream")
@@ -104,16 +107,10 @@ async def ws_stream(websocket: WebSocket, token: str = Query(...)) -> None:
         await websocket.close(code=4003)
         return
 
-    engine = get_engine()
-    if engine is None or engine.capacity().queued >= _ADMISSION_MAX_QUEUE:
-        await websocket.send_json({"type": "error", "code": "capacity"})
-        await websocket.close(code=1013)
-        return
-
     streams_started.inc()
     streams_active.inc()
     try:
-        await _executar_stream(websocket, client, engine)
+        await _executar_stream(websocket, client)
     except Exception:
         streams_errors.labels(code="internal").inc()
         raise
@@ -124,9 +121,7 @@ async def ws_stream(websocket: WebSocket, token: str = Query(...)) -> None:
 async def _executar_stream(
     websocket: WebSocket,
     client: Client,
-    engine: TTSEngine,
 ) -> None:
-    # Aguarda mensagem start
     try:
         raw = await websocket.receive_text()
         first_msg = parse_client_msg(raw)
@@ -146,8 +141,26 @@ async def _executar_stream(
         await websocket.close()
         return
 
+    decision = await decide_engine(client.id, start.voice_id)
+
+    if decision is None:
+        await websocket.send_json({"type": "error", "code": "capacity"})
+        await websocket.close(code=1013)
+        return
+
+    await _executar_com_engine(websocket, client, start, orm_voice, decision)
+
+
+async def _executar_com_engine(
+    websocket: WebSocket,
+    client: Client,
+    start: StartMsg,
+    orm_voice: DbVoice,
+    decision: RoutingDecision,
+) -> None:
+    engine = decision.engine
     voice = Voice(
-        id=orm_voice.id,
+        id=decision.effective_voice_id,
         name=orm_voice.name,
         style_prompt=orm_voice.style_prompt,
     )
@@ -158,7 +171,6 @@ async def _executar_stream(
     )
     request_id = uuid.uuid4()
 
-    # Fila de saída única — garante sends sequenciais no WebSocket.
     send_queue: asyncio.Queue[bytes | dict[str, object] | None] = asyncio.Queue()
     text_queue: asyncio.Queue[str | None] = asyncio.Queue()
     cancelled = asyncio.Event()
@@ -167,7 +179,7 @@ async def _executar_stream(
         {
             "type": "started",
             "request_id": str(request_id),
-            "engine": engine.name,
+            "engine": decision.engine_name,
             "sample_rate": engine.sample_rate,
         }
     )
@@ -261,8 +273,6 @@ async def _executar_stream(
         cancelled_by_client = True
 
     finally:
-        # Aguarda audio_task encerrar naturalmente (text_queue já tem None)
-        # antes de parar o sender; evita cancelar enquanto chunks estão na fila.
         with contextlib.suppress(asyncio.CancelledError, Exception):
             await audio_task
         if not audio_task.done():
@@ -290,15 +300,16 @@ async def _executar_stream(
                 request_id=request_id,
                 client_id=client.id,
                 voice_id=start.voice_id,
-                engine_name=engine.name,
+                engine_name=decision.engine_name,
                 characters=total_chars,
                 audio_ms=total_audio_ms,
                 ttfa_ms=ttfa_ms,
                 total_ms=total_ms,
+                fallback=decision.is_fallback,
+                fallback_reason=decision.fallback_reason,
             )
         )
     else:
         streams_cancelled.inc()
-        # Fecha explicitamente; sem isso o TestClient bloqueia em receive após cancel.
         with contextlib.suppress(Exception):
             await websocket.close()
