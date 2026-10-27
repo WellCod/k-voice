@@ -23,9 +23,9 @@ Gate: critérios de [teste-cego.md](teste-cego.md) atendidos.
 
 ## Fase 1 — Motor e streaming
 
-- [ ] PR 6 — `feat(engine): interface de motor e qwen3-tts com streaming e cancelamento`
-- [ ] PR 7 — `feat(normalize): normalização pt-br com modo incremental e tabela de casos`
-- [ ] PR 8 — `feat(api): banco, clientes, tokens, vozes e medição por fala`
+- [x] PR 6 — `feat(engine): interface de motor e qwen3-tts com streaming e cancelamento`
+- [x] PR 7 — `feat(normalize): normalização pt-br com modo incremental e tabela de casos`
+- [x] PR 8 — `feat(api): banco, clientes, tokens, vozes e medição por fala`
   Postgres + Alembic; tabelas de [arquitetura.md](arquitetura.md).
 - [ ] PR 9 — `feat(api): websocket de streaming com autenticação, admissão e métricas`
 - [ ] PR 10 — `chore(infra): imagem cuda, compose de dev e deploy em gpu`
