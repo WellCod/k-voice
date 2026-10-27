@@ -32,7 +32,7 @@ from kvoice.db.models import ApiToken, BatchJob, BatchStatus, Client
 from kvoice.db.models import Voice as DbVoice
 from kvoice.db.session import session_factory
 from kvoice.engine.types import SynthOptions, Voice
-from kvoice.normalize import normalize, normalize_incremental
+from kvoice.normalize import apply_dict, load_dict, normalize, normalize_incremental
 from kvoice.storage import get_storage
 
 router = APIRouter(tags=["tts"])
@@ -126,7 +126,8 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
         style_prompt=orm_voice.style_prompt,
     )
     opts = SynthOptions(format=body.format)
-    normalized = normalize(body.text)
+    pron = await load_dict(client.id)
+    normalized = normalize(apply_dict(body.text, pron))
 
     audio = await decision.engine.synthesize(normalized, voice, opts)
 

@@ -23,7 +23,7 @@ from kvoice.db.models import ApiToken, Client
 from kvoice.db.models import Voice as DbVoice
 from kvoice.db.session import session_factory
 from kvoice.engine.types import SynthOptions, Voice
-from kvoice.normalize import normalize
+from kvoice.normalize import apply_dict, load_dict, normalize
 
 router = APIRouter(prefix="/v1", tags=["compat-elevenlabs"])
 
@@ -120,6 +120,7 @@ async def text_to_speech(
         style_prompt=orm_voice.style_prompt,
     )
     opts = SynthOptions(format=our_format, speed=speed)
-    audio = await decision.engine.synthesize(normalize(body.text), voice, opts)
+    pron = await load_dict(client.id)
+    audio = await decision.engine.synthesize(normalize(apply_dict(body.text, pron)), voice, opts)
     encoded, content_type = encode_audio(audio.data, audio.sample_rate, our_format)
     return Response(content=encoded, media_type=content_type)

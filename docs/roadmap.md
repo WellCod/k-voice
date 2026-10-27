@@ -47,7 +47,7 @@ Gate: métricas de [operacao.md](operacao.md) dentro da meta a 10% por 7 dias, s
 - [x] PR 15 — `feat(mcp): servidor mcp com synthesize, list_voices e get_voice`
 - [x] PR 16 — `feat(compat): subconjunto da api da elevenlabs`
   Só o que [paridade-elevenlabs.md](paridade-elevenlabs.md) marcar como usado.
-- [ ] PR 17 — `feat(normalize): dicionário de pronúncia por cliente`
+- [x] PR 17 — `feat(normalize): dicionário de pronúncia por cliente`
 - [ ] Migrar integrações de WhatsApp para o k-voice.
 
 Gate: nenhuma integração de lote chamando a ElevenLabs direto.

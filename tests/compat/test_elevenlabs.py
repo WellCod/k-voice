@@ -104,6 +104,7 @@ def test_compat_mp3_xi_key() -> None:
         patch("kvoice.compat.elevenlabs._buscar_voz", AsyncMock(return_value=fv)),
         patch("kvoice.compat.elevenlabs.decide_engine", AsyncMock(return_value=_kvoice_decision())),
         patch("kvoice.compat.elevenlabs.encode_audio", return_value=(_ENCODED, _CONTENT_TYPE)),
+        patch("kvoice.compat.elevenlabs.load_dict", AsyncMock(return_value=[])),
         TestClient(app) as client,
     ):
         resp = client.post(
@@ -132,6 +133,7 @@ def test_compat_ogg_bearer() -> None:
             "kvoice.compat.elevenlabs.encode_audio",
             return_value=(b"ogg_bytes", "audio/ogg; codecs=opus"),
         ),
+        patch("kvoice.compat.elevenlabs.load_dict", AsyncMock(return_value=[])),
         TestClient(app) as client,
     ):
         resp = client.post(
@@ -172,6 +174,7 @@ def test_compat_speed() -> None:
         patch("kvoice.compat.elevenlabs._buscar_voz", AsyncMock(return_value=fv)),
         patch("kvoice.compat.elevenlabs.decide_engine", AsyncMock(return_value=decision)),
         patch("kvoice.compat.elevenlabs.encode_audio", return_value=(_ENCODED, _CONTENT_TYPE)),
+        patch("kvoice.compat.elevenlabs.load_dict", AsyncMock(return_value=[])),
         TestClient(app) as client,
     ):
         client.post(
