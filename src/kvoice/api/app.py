@@ -8,6 +8,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from kvoice.api.routers import admin, tts, voices
 from kvoice.db.session import init_db
+from kvoice.mcp.server import mcp
 from kvoice.settings import get_settings
 
 
@@ -23,6 +24,7 @@ def create_app() -> FastAPI:
     app.include_router(admin.router)
     app.include_router(voices.router)
     app.include_router(tts.router)
+    app.mount("/mcp", mcp.streamable_http_app())
 
     @app.get("/health")
     async def health() -> dict[str, str]:

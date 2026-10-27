@@ -14,6 +14,7 @@ dependencies = [
     "prometheus-client>=0.20",
     "elevenlabs>=2.0",
     "boto3>=1.35",
+    "mcp>=1.0",
 ]
 
 [tool.uv]
@@ -62,7 +63,7 @@ python_version = "3.12"
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["livekit.*", "websockets.*", "elevenlabs.*", "boto3", "boto3.*", "botocore", "botocore.*"]
+module = ["livekit.*", "websockets.*", "elevenlabs.*", "boto3", "boto3.*", "botocore", "botocore.*", "mcp", "mcp.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
