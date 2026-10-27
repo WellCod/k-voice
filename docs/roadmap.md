@@ -27,7 +27,7 @@ Gate: critérios de [teste-cego.md](teste-cego.md) atendidos.
 - [x] PR 7 — `feat(normalize): normalização pt-br com modo incremental e tabela de casos`
 - [x] PR 8 — `feat(api): banco, clientes, tokens, vozes e medição por fala`
   Postgres + Alembic; tabelas de [arquitetura.md](arquitetura.md).
-- [ ] PR 9 — `feat(api): websocket de streaming com autenticação, admissão e métricas`
+- [x] PR 9 — `feat(api): websocket de streaming com autenticação, admissão e métricas`
 - [ ] PR 10 — `chore(infra): imagem cuda, compose de dev e deploy em gpu`
 
 Gate: teste de carga no WebSocket com TTFA p95 ≤ 350 ms no pico previsto, cancelamento < 50 ms.
