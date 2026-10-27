@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -146,3 +147,23 @@ class UsageEventIn(BaseModel):
     engine: str
     fallback: bool = False
     fallback_reason: str | None = None
+
+
+# -----------------------------------------------------------------------
+# Síntese em lote
+# -----------------------------------------------------------------------
+
+
+class BatchRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=10_000)
+    voice_id: str = Field(min_length=1)
+    format: Literal["ogg_opus", "mp3_44100", "wav_24000"] = "ogg_opus"
+    delivery: Literal["url", "bytes"] = "url"
+    url_ttl_s: int = Field(default=86400, ge=60, le=604800)
+
+
+class BatchResponse(BaseModel):
+    request_id: uuid.UUID
+    url: str
+    duration_ms: float
+    characters: int

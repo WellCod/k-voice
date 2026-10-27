@@ -13,6 +13,7 @@ dependencies = [
     "asyncpg>=0.30",
     "prometheus-client>=0.20",
     "elevenlabs>=2.0",
+    "boto3>=1.35",
 ]
 
 [tool.uv]
@@ -61,7 +62,7 @@ python_version = "3.12"
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["livekit.*", "websockets.*", "elevenlabs.*"]
+module = ["livekit.*", "websockets.*", "elevenlabs.*", "boto3", "boto3.*", "botocore", "botocore.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
