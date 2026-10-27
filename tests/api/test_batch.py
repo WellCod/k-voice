@@ -146,6 +146,7 @@ def test_lote_bytes_kvoice() -> None:
     with (
         patch("kvoice.api.routers.tts.decide_engine", AsyncMock(return_value=_kvoice_decision())),
         patch("kvoice.api.routers.tts.encode_audio", return_value=(_ENCODED, _CONTENT_TYPE)),
+        patch("kvoice.api.routers.tts.load_dict", AsyncMock(return_value=[])),
         TestClient(app) as client,
     ):
         resp = client.post(
@@ -172,6 +173,7 @@ def test_lote_url_kvoice() -> None:
         patch("kvoice.api.routers.tts.decide_engine", AsyncMock(return_value=_kvoice_decision())),
         patch("kvoice.api.routers.tts.encode_audio", return_value=(_ENCODED, _CONTENT_TYPE)),
         patch("kvoice.api.routers.tts.get_storage", return_value=_mock_storage()),
+        patch("kvoice.api.routers.tts.load_dict", AsyncMock(return_value=[])),
         TestClient(app) as client,
     ):
         resp = client.post(
@@ -207,6 +209,7 @@ def test_lote_formato_wav() -> None:
             "kvoice.api.routers.tts.encode_audio",
             return_value=(b"wav_bytes", "audio/wav"),
         ),
+        patch("kvoice.api.routers.tts.load_dict", AsyncMock(return_value=[])),
         TestClient(app) as client,
     ):
         resp = client.post(

@@ -26,7 +26,7 @@ from kvoice.db.models import ApiToken, Client
 from kvoice.db.models import Voice as DbVoice
 from kvoice.db.session import session_factory
 from kvoice.engine.types import SynthOptions, Voice
-from kvoice.normalize import normalize
+from kvoice.normalize import apply_dict, load_dict, normalize
 from kvoice.storage import get_storage
 
 mcp = MCPServer(name="k-voice", description="Síntese de voz pt-BR para agentes de IA")
@@ -136,7 +136,9 @@ async def synthesize(
         name=orm_voice.name,
         style_prompt=orm_voice.style_prompt,
     )
-    audio = await decision.engine.synthesize(normalize(text), voice, SynthOptions(format=format))
+    pron = await load_dict(client.id)
+    normalized = normalize(apply_dict(text, pron))
+    audio = await decision.engine.synthesize(normalized, voice, SynthOptions(format=format))
 
     encoded, content_type = encode_audio(audio.data, audio.sample_rate, format)
     duration_ms = round(pcm_duration_ms(audio.data, audio.sample_rate), 1)

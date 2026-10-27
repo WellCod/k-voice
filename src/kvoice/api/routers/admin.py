@@ -11,6 +11,8 @@ from kvoice.api.deps import DbSession, _exigir_scope
 from kvoice.api.schemas import (
     ClientCreate,
     ClientResponse,
+    PronunciationEntryCreate,
+    PronunciationEntryResponse,
     RoutingRuleCreate,
     RoutingRuleResponse,
     TokenCreate,
@@ -18,7 +20,7 @@ from kvoice.api.schemas import (
     VoiceCreate,
     VoiceResponse,
 )
-from kvoice.db.models import ApiToken, Client, RoutingRule, Voice
+from kvoice.db.models import ApiToken, Client, PronunciationEntry, RoutingRule, Voice
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 _admin = Depends(_exigir_scope("admin"))
@@ -182,4 +184,97 @@ async def remover_regra_roteamento(client_id: uuid.UUID, db: DbSession) -> None:
             status_code=status.HTTP_404_NOT_FOUND, detail="Regra de roteamento não encontrada"
         )
     rule.is_active = False
+    await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Dicionário de pronúncia
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/clients/{client_id}/pronunciation",
+    response_model=PronunciationEntryResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[_admin],
+)
+async def criar_entrada_pronuncia(
+    client_id: uuid.UUID, body: PronunciationEntryCreate, db: DbSession
+) -> PronunciationEntry:
+    client = await db.get(Client, client_id)
+    if client is None or not client.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente não encontrado")
+    entry = PronunciationEntry(
+        client_id=client_id,
+        term=body.term,
+        expansion=body.expansion,
+        is_regex=body.is_regex,
+    )
+    db.add(entry)
+    await db.commit()
+    await db.refresh(entry)
+    return entry
+
+
+@router.get(
+    "/clients/{client_id}/pronunciation",
+    response_model=list[PronunciationEntryResponse],
+    dependencies=[_admin],
+)
+async def listar_entradas_pronuncia(
+    client_id: uuid.UUID, db: DbSession
+) -> list[PronunciationEntry]:
+    result = await db.execute(
+        select(PronunciationEntry)
+        .where(PronunciationEntry.client_id == client_id)
+        .order_by(PronunciationEntry.term)
+    )
+    return list(result.scalars().all())
+
+
+@router.post(
+    "/pronunciation",
+    response_model=PronunciationEntryResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[_admin],
+)
+async def criar_entrada_pronuncia_global(
+    body: PronunciationEntryCreate, db: DbSession
+) -> PronunciationEntry:
+    entry = PronunciationEntry(
+        client_id=None,
+        term=body.term,
+        expansion=body.expansion,
+        is_regex=body.is_regex,
+    )
+    db.add(entry)
+    await db.commit()
+    await db.refresh(entry)
+    return entry
+
+
+@router.get(
+    "/pronunciation",
+    response_model=list[PronunciationEntryResponse],
+    dependencies=[_admin],
+)
+async def listar_entradas_pronuncia_global(db: DbSession) -> list[PronunciationEntry]:
+    result = await db.execute(
+        select(PronunciationEntry)
+        .where(PronunciationEntry.client_id.is_(None))
+        .order_by(PronunciationEntry.term)
+    )
+    return list(result.scalars().all())
+
+
+@router.delete(
+    "/pronunciation/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[_admin],
+)
+async def remover_entrada_pronuncia(entry_id: uuid.UUID, db: DbSession) -> None:
+    entry = await db.get(PronunciationEntry, entry_id)
+    if entry is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entrada não encontrada")
+    await db.delete(entry)
     await db.commit()

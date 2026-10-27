@@ -114,6 +114,7 @@ async def test_synthesize_retorna_url() -> None:
         patch("kvoice.mcp.server.decide_engine", AsyncMock(return_value=_kvoice_decision())),
         patch("kvoice.mcp.server.encode_audio", return_value=(_ENCODED, _CONTENT_TYPE)),
         patch("kvoice.mcp.server.get_storage", return_value=_mock_storage()),
+        patch("kvoice.mcp.server.load_dict", AsyncMock(return_value=[])),
     ):
         result = await synthesize("Olá, tudo bem?", "v_fake", ctx=_fake_ctx())
 

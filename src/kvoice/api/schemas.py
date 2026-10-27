@@ -167,3 +167,24 @@ class BatchResponse(BaseModel):
     url: str
     duration_ms: float
     characters: int
+
+
+# -----------------------------------------------------------------------
+# Dicionário de pronúncia
+# -----------------------------------------------------------------------
+
+
+class PronunciationEntryCreate(BaseModel):
+    term: str = Field(min_length=1, max_length=255)
+    expansion: str = Field(min_length=1, max_length=1024)
+    is_regex: bool = False
+
+
+class PronunciationEntryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    client_id: uuid.UUID | None
+    term: str
+    expansion: str
+    is_regex: bool
