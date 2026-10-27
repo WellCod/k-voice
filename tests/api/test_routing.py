@@ -32,7 +32,6 @@ def _mock_eleven() -> MagicMock:
     return engine
 
 
-
 async def _decide(
     voice_id: str,
     rule: RoutingRule | None,
