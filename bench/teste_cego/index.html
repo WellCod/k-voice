@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teste de Qualidade de Voz</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <div id="tela-intro" class="tela ativa">
+      <h1>Teste de Qualidade de Voz</h1>
+      <p class="instrucao">
+        Você vai ouvir trechos de áudio que simulam uma ligação telefônica e avaliar
+        a qualidade da voz. O teste tem três etapas:
+      </p>
+      <ol>
+        <li><strong>ABX</strong> — Você ouve três áudios (A, B e X) e decide se X soa mais como A ou como B.</li>
+        <li><strong>Nota de naturalidade (MOS)</strong> — Você ouve um áudio e dá uma nota de 1 a 5.</li>
+        <li><strong>Preferência</strong> — Entre dois áudios, qual soa mais como uma pessoa ao telefone?</li>
+      </ol>
+      <p class="instrucao">Use fone de ouvido se possível. Ouça cada áudio pelo menos uma vez antes de responder.</p>
+      <div class="campo-id">
+        <label for="ouvinte-id">Seu nome ou apelido (aparece só no CSV exportado):</label>
+        <input type="text" id="ouvinte-id" placeholder="ex: maria" autocomplete="off">
+      </div>
+      <button id="btn-iniciar" class="btn-primario" disabled>Iniciar teste</button>
+    </div>
+
+    <div id="tela-abx" class="tela">
+      <div class="cabecalho-progresso">
+        <span id="fase-label">ABX</span>
+        <div class="barra-progresso"><div id="barra-fill"></div></div>
+        <span id="progresso-label"></span>
+      </div>
+      <p class="instrucao-fase">
+        Ouça os três áudios. Qual é X — soa como <strong>A</strong> ou como <strong>B</strong>?
+      </p>
+      <p id="abx-texto" class="texto-frase"></p>
+      <div class="players">
+        <div class="player-bloco">
+          <span class="player-label">A</span>
+          <audio id="audio-a" controls preload="none"></audio>
+        </div>
+        <div class="player-bloco">
+          <span class="player-label">B</span>
+          <audio id="audio-b" controls preload="none"></audio>
+        </div>
+        <div class="player-bloco destaque">
+          <span class="player-label">X</span>
+          <audio id="audio-x" controls preload="none"></audio>
+        </div>
+      </div>
+      <div class="opcoes">
+        <label class="opcao"><input type="radio" name="abx-resp" value="a"> X soa como A</label>
+        <label class="opcao"><input type="radio" name="abx-resp" value="b"> X soa como B</label>
+      </div>
+      <button id="btn-abx-ok" class="btn-primario" disabled>Confirmar</button>
+    </div>
+
+    <div id="tela-mos" class="tela">
+      <div class="cabecalho-progresso">
+        <span id="mos-fase-label">MOS</span>
+        <div class="barra-progresso"><div id="mos-barra-fill"></div></div>
+        <span id="mos-progresso-label"></span>
+      </div>
+      <p class="instrucao-fase">
+        Ouça o áudio e avalie a naturalidade da voz em condição de telefone.
+      </p>
+      <p id="mos-texto" class="texto-frase"></p>
+      <div class="players">
+        <div class="player-bloco">
+          <audio id="audio-mos" controls preload="none"></audio>
+        </div>
+      </div>
+      <div class="escala-mos">
+        <span class="escala-texto">1 — Muito ruim</span>
+        <div class="opcoes opcoes-mos">
+          <label class="opcao-mos"><input type="radio" name="mos-resp" value="1"> 1</label>
+          <label class="opcao-mos"><input type="radio" name="mos-resp" value="2"> 2</label>
+          <label class="opcao-mos"><input type="radio" name="mos-resp" value="3"> 3</label>
+          <label class="opcao-mos"><input type="radio" name="mos-resp" value="4"> 4</label>
+          <label class="opcao-mos"><input type="radio" name="mos-resp" value="5"> 5</label>
+        </div>
+        <span class="escala-texto">5 — Excelente</span>
+      </div>
+      <button id="btn-mos-ok" class="btn-primario" disabled>Confirmar</button>
+    </div>
+
+    <div id="tela-pref" class="tela">
+      <div class="cabecalho-progresso">
+        <span id="pref-fase-label">Preferência</span>
+        <div class="barra-progresso"><div id="pref-barra-fill"></div></div>
+        <span id="pref-progresso-label"></span>
+      </div>
+      <p class="instrucao-fase">
+        Ouça os dois áudios. Qual soa mais como uma pessoa real ao telefone?
+      </p>
+      <p id="pref-texto" class="texto-frase"></p>
+      <div class="players">
+        <div class="player-bloco">
+          <span class="player-label">A</span>
+          <audio id="audio-pa" controls preload="none"></audio>
+        </div>
+        <div class="player-bloco">
+          <span class="player-label">B</span>
+          <audio id="audio-pb" controls preload="none"></audio>
+        </div>
+      </div>
+      <div class="opcoes">
+        <label class="opcao"><input type="radio" name="pref-resp" value="a"> Prefiro A</label>
+        <label class="opcao"><input type="radio" name="pref-resp" value="b"> Prefiro B</label>
+      </div>
+      <button id="btn-pref-ok" class="btn-primario" disabled>Confirmar</button>
+    </div>
+
+    <div id="tela-fim" class="tela">
+      <h2>Teste concluído</h2>
+      <p>Obrigado pela sua participação!</p>
+      <div id="resumo"></div>
+      <button id="btn-csv" class="btn-primario">Baixar respostas (CSV)</button>
+      <p class="instrucao">Envie o arquivo CSV para quem coordena o teste.</p>
+    </div>
+  </div>
+
+  <script src="dados.js" onerror="window.__semDados=true"></script>
+  <script src="app.js"></script>
+</body>
+</html>

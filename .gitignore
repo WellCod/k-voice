@@ -14,3 +14,4 @@ dist/
 *.opus
 bench/outputs/
 bench/referencias/
+bench/teste_cego/dados.js
