@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -10,12 +11,14 @@ from kvoice.api.deps import DbSession, _exigir_scope
 from kvoice.api.schemas import (
     ClientCreate,
     ClientResponse,
+    RoutingRuleCreate,
+    RoutingRuleResponse,
     TokenCreate,
     TokenCreated,
     VoiceCreate,
     VoiceResponse,
 )
-from kvoice.db.models import ApiToken, Client, Voice
+from kvoice.db.models import ApiToken, Client, RoutingRule, Voice
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 _admin = Depends(_exigir_scope("admin"))
@@ -102,3 +105,81 @@ async def criar_voz(body: VoiceCreate, db: DbSession) -> Voice:
     await db.commit()
     await db.refresh(voice)
     return voice
+
+
+@router.put(
+    "/clients/{client_id}/routing",
+    response_model=RoutingRuleResponse,
+    dependencies=[_admin],
+)
+async def upsert_regra_roteamento(
+    client_id: uuid.UUID, body: RoutingRuleCreate, db: DbSession
+) -> RoutingRule:
+    client = await db.get(Client, client_id)
+    if client is None or not client.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente não encontrado")
+
+    result = await db.execute(
+        select(RoutingRule)
+        .where(RoutingRule.client_id == client_id, RoutingRule.is_active.is_(True))
+        .limit(1)
+    )
+    rule = result.scalar_one_or_none()
+
+    mapping_str = json.dumps(body.voice_mapping) if body.voice_mapping is not None else None
+
+    if rule is None:
+        rule = RoutingRule(
+            client_id=client_id,
+            mode=body.mode,
+            kvoice_pct=body.kvoice_pct,
+            voice_mapping=mapping_str,
+        )
+        db.add(rule)
+    else:
+        rule.mode = body.mode
+        rule.kvoice_pct = body.kvoice_pct
+        rule.voice_mapping = mapping_str
+
+    await db.commit()
+    await db.refresh(rule)
+    return rule
+
+
+@router.get(
+    "/clients/{client_id}/routing",
+    response_model=RoutingRuleResponse,
+    dependencies=[_admin],
+)
+async def buscar_regra_roteamento(client_id: uuid.UUID, db: DbSession) -> RoutingRule:
+    result = await db.execute(
+        select(RoutingRule)
+        .where(RoutingRule.client_id == client_id, RoutingRule.is_active.is_(True))
+        .limit(1)
+    )
+    rule = result.scalar_one_or_none()
+    if rule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Regra de roteamento não encontrada"
+        )
+    return rule
+
+
+@router.delete(
+    "/clients/{client_id}/routing",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[_admin],
+)
+async def remover_regra_roteamento(client_id: uuid.UUID, db: DbSession) -> None:
+    result = await db.execute(
+        select(RoutingRule)
+        .where(RoutingRule.client_id == client_id, RoutingRule.is_active.is_(True))
+        .limit(1)
+    )
+    rule = result.scalar_one_or_none()
+    if rule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Regra de roteamento não encontrada"
+        )
+    rule.is_active = False
+    await db.commit()

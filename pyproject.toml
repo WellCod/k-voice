@@ -12,6 +12,7 @@ dependencies = [
     "alembic>=1.14",
     "asyncpg>=0.30",
     "prometheus-client>=0.20",
+    "elevenlabs>=2.0",
 ]
 
 [tool.uv]
@@ -34,7 +35,7 @@ bench = [
     "scipy>=1.13",
     "soundfile>=0.12",
     "tqdm>=4.0",
-    "elevenlabs>=1.11",
+    "elevenlabs>=2.0",
     "websockets>=13.0",
 ]
 livekit = [
@@ -60,7 +61,7 @@ python_version = "3.12"
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["livekit.*", "websockets.*"]
+module = ["livekit.*", "websockets.*", "elevenlabs.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

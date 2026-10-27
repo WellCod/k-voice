@@ -22,6 +22,7 @@ from kvoice.api.ws_proto import (
     TextMsg,
     parse_client_msg,
 )
+from kvoice.api.routing import RoutingDecision
 from kvoice.engine.registry import clear_engine, set_engine
 from kvoice.engine.types import AudioChunk, Capacity, SynthOptions, TTSEngine, Voice
 
@@ -148,6 +149,23 @@ def _uso_patch() -> Any:
     )
 
 
+def _routing_patch(decision: RoutingDecision | None) -> Any:
+    return patch(
+        "kvoice.api.routers.tts.decide_engine",
+        AsyncMock(return_value=decision),
+    )
+
+
+def _kvoice_decision(engine: _FakeEngine, voice_id: str = "v_fake") -> RoutingDecision:
+    return RoutingDecision(
+        engine=engine,  # type: ignore[arg-type]
+        engine_name=engine.name,
+        effective_voice_id=voice_id,
+        is_fallback=False,
+        fallback_reason=None,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Testes de parse de mensagens
 # ---------------------------------------------------------------------------
@@ -223,13 +241,16 @@ def test_registry_admissao_cheia() -> None:
 
 
 def test_ws_sem_motor(fake_client: Any, fake_token: Any, fake_voice: Any) -> None:
+    """Sem engine disponível → routing retorna None → capacity error após start."""
     app = _make_app()
     with (
         _auth_patch(fake_client, fake_token),
         _voice_patch(fake_voice),
+        _routing_patch(None),
         TestClient(app) as client,
         client.websocket_connect("/v1/tts/stream?token=tok") as ws,
     ):
+        ws.send_json({"type": "start", "voice_id": "v_fake"})
         data = ws.receive_json()
         assert data["type"] == "error"
         assert data["code"] == "capacity"
@@ -289,6 +310,7 @@ def test_ws_fluxo_completo(
     with (
         _auth_patch(fake_client, fake_token),
         _voice_patch(fake_voice),
+        _routing_patch(_kvoice_decision(engine)),
         _uso_patch(),
         TestClient(app) as client,
         client.websocket_connect("/v1/tts/stream?token=tok") as ws,
@@ -316,6 +338,7 @@ def test_ws_cancel(engine: _FakeEngine, fake_client: Any, fake_token: Any, fake_
     with (
         _auth_patch(fake_client, fake_token),
         _voice_patch(fake_voice),
+        _routing_patch(_kvoice_decision(engine)),
         _uso_patch(),
         TestClient(app) as client,
         client.websocket_connect("/v1/tts/stream?token=tok") as ws,
@@ -356,7 +379,12 @@ def test_ws_concorrencia(
             with lock:
                 resultados.append(msg.get("type", ""))
 
-    with _auth_patch(fake_client, fake_token), _voice_patch(fake_voice), _uso_patch():
+    with (
+        _auth_patch(fake_client, fake_token),
+        _voice_patch(fake_voice),
+        _routing_patch(_kvoice_decision(engine)),
+        _uso_patch(),
+    ):
         threads = [threading.Thread(target=_sessao) for _ in range(N)]
         for t in threads:
             t.start()
@@ -376,6 +404,7 @@ def test_ws_cancel_timing(
     with (
         _auth_patch(fake_client, fake_token),
         _voice_patch(fake_voice),
+        _routing_patch(_kvoice_decision(engine)),
         _uso_patch(),
         TestClient(app) as client,
         client.websocket_connect("/v1/tts/stream?token=tok") as ws,
