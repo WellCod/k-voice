@@ -17,6 +17,7 @@ from kvoice.api.schemas import (
     RoutingRuleResponse,
     TokenCreate,
     TokenCreated,
+    TokenResponse,
     VoiceCreate,
     VoiceResponse,
 )
@@ -67,6 +68,18 @@ async def criar_token(client_id: uuid.UUID, body: TokenCreate, db: DbSession) ->
     await db.commit()
     await db.refresh(token)
     return TokenCreated(id=token.id, name=token.name, token=raw, scopes=body.scopes)
+
+
+@router.get(
+    "/clients/{client_id}/tokens",
+    response_model=list[TokenResponse],
+    dependencies=[_admin],
+)
+async def listar_tokens(client_id: uuid.UUID, db: DbSession) -> list[ApiToken]:
+    result = await db.execute(
+        select(ApiToken).where(ApiToken.client_id == client_id).order_by(ApiToken.created_at.desc())
+    )
+    return list(result.scalars().all())
 
 
 @router.delete(

@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>k-voice — Painel</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0d1117;--bg-sidebar:#161b22;--bg-surface:#1c2128;--bg-surface2:#22272e;
+      --border:#30363d;--border-dim:#21262d;
+      --primary:#a371f7;--primary-dim:rgba(163,113,247,.15);--primary-glow:rgba(163,113,247,.2);
+      --green:#3fb950;--red:#f85149;--yellow:#d29922;--blue:#58a6ff;
+      --text:#e6edf3;--text-muted:#8b949e;--text-dim:#6e7681;
+      --r:6px;--sidebar-w:224px;
+    }
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+      font-size:14px;background:var(--bg);color:var(--text);
+      display:grid;grid-template-columns:var(--sidebar-w) 1fr;height:100vh;overflow:hidden;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar{
+      background:var(--bg-sidebar);border-right:1px solid var(--border);
+      display:flex;flex-direction:column;height:100vh;overflow-y:auto;
+    }
+    .logo{
+      padding:18px 16px 16px;display:flex;align-items:center;gap:10px;
+      border-bottom:1px solid var(--border);flex-shrink:0;
+    }
+    .logo-mark{
+      width:34px;height:34px;border-radius:var(--r);flex-shrink:0;
+      background:linear-gradient(135deg,#a371f7 0%,#6e40c9 100%);
+      display:flex;align-items:center;justify-content:center;font-size:18px;
+    }
+    .logo-text{font-size:16px;font-weight:700;letter-spacing:-.4px}
+    .logo-text em{font-style:normal;color:var(--primary)}
+    nav{flex:1;padding:10px 8px}
+    .nav-sep{
+      font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;
+      color:var(--text-dim);padding:14px 10px 4px;
+    }
+    .nav-link{
+      display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:var(--r);
+      color:var(--text-muted);text-decoration:none;font-size:13px;font-weight:500;
+      cursor:pointer;border:none;background:none;width:100%;text-align:left;
+      transition:background .12s,color .12s;
+    }
+    .nav-link:hover{background:var(--bg-surface);color:var(--text)}
+    .nav-link.active{background:var(--primary-dim);color:var(--primary)}
+    .nav-ico{font-size:15px;width:18px;text-align:center;flex-shrink:0}
+    .sidebar-foot{padding:10px 8px;border-top:1px solid var(--border);flex-shrink:0}
+
+    /* ── Main ── */
+    .main{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+    .topbar{
+      height:54px;padding:0 24px;display:flex;align-items:center;
+      justify-content:space-between;border-bottom:1px solid var(--border);
+      background:var(--bg);flex-shrink:0;
+    }
+    .page-title{font-size:15px;font-weight:600}
+    .topbar-right{display:flex;align-items:center;gap:10px}
+    .tok-badge{
+      display:flex;align-items:center;gap:6px;padding:3px 10px;
+      border-radius:20px;font-size:12px;font-weight:500;
+    }
+    .tok-badge.ok{background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.25)}
+    .tok-badge.no{background:rgba(248,81,73,.1);color:var(--red);border:1px solid rgba(248,81,73,.2)}
+    .tok-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+    .content{flex:1;overflow-y:auto;padding:24px}
+
+    /* ── Pages ── */
+    .page{display:none}
+    .page.active{display:block}
+
+    /* ── Cards ── */
+    .card{
+      background:var(--bg-surface);border:1px solid var(--border);
+      border-radius:var(--r);padding:20px;
+    }
+    .card+.card{margin-top:16px}
+    .card-title{font-size:13px;font-weight:700;color:var(--text-muted);
+      text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px}
+
+    /* ── Forms ── */
+    .lbl{
+      display:block;font-size:11.5px;font-weight:700;color:var(--text-muted);
+      margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px;
+    }
+    input,textarea,select{
+      width:100%;background:var(--bg);border:1px solid var(--border);
+      border-radius:var(--r);color:var(--text);font-family:inherit;
+      font-size:13.5px;padding:7px 11px;outline:none;transition:border-color .15s,box-shadow .15s;
+    }
+    input:focus,textarea:focus,select:focus{
+      border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-glow);
+    }
+    textarea{resize:vertical;min-height:130px;line-height:1.65}
+    input[type=password]{letter-spacing:.1em}
+    .fgrp{margin-bottom:16px}
+    .fhint{font-size:11.5px;color:var(--text-dim);margin-top:4px;line-height:1.5}
+
+    /* ── Buttons ── */
+    .btn{
+      display:inline-flex;align-items:center;gap:7px;padding:7px 14px;
+      border-radius:var(--r);font-family:inherit;font-size:13px;font-weight:600;
+      cursor:pointer;border:1px solid transparent;transition:all .12s;white-space:nowrap;
+    }
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+    .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+    .btn-primary:hover:not(:disabled){background:#b794f6;border-color:#b794f6}
+    .btn-secondary{background:var(--bg-surface2);color:var(--text);border-color:var(--border)}
+    .btn-secondary:hover:not(:disabled){background:#2d333b;border-color:#444c56}
+    .btn-danger{background:transparent;color:var(--red);border-color:rgba(248,81,73,.3)}
+    .btn-danger:hover:not(:disabled){background:rgba(248,81,73,.1);border-color:var(--red)}
+    .btn-ghost{background:transparent;border-color:transparent;color:var(--text-muted);padding:5px 8px}
+    .btn-ghost:hover:not(:disabled){background:var(--bg-surface2);color:var(--text)}
+    .btn-sm{padding:4px 10px;font-size:12px;gap:5px}
+    .btn-xs{padding:2px 8px;font-size:11px}
+
+    /* Segmented / group */
+    .seg{display:flex;border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+    .seg .btn{border-radius:0;border:none;border-right:1px solid var(--border);flex:1;justify-content:center}
+    .seg .btn:last-child{border-right:none}
+    .seg .btn.active{background:var(--primary-dim);color:var(--primary)}
+
+    /* ── Table ── */
+    .tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r)}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    thead tr{background:var(--bg-surface2)}
+    th{
+      padding:9px 13px;text-align:left;font-size:11px;font-weight:700;
+      text-transform:uppercase;letter-spacing:.45px;color:var(--text-muted);
+      border-bottom:1px solid var(--border);white-space:nowrap;
+    }
+    td{padding:9px 13px;border-bottom:1px solid var(--border-dim);vertical-align:middle}
+    tr:last-child td{border-bottom:none}
+    tbody tr:hover td{background:rgba(255,255,255,.02)}
+
+    /* ── Badges ── */
+    .badge{
+      display:inline-block;padding:2px 7px;border-radius:20px;
+      font-size:11px;font-weight:600;white-space:nowrap;
+    }
+    .bg{background:rgba(63,185,80,.12);color:var(--green)}
+    .br{background:rgba(248,81,73,.1);color:var(--red)}
+    .bb{background:rgba(88,166,255,.12);color:var(--blue)}
+    .bp{background:rgba(163,113,247,.12);color:var(--primary)}
+    .by{background:rgba(210,153,34,.12);color:var(--yellow)}
+    .bk{background:rgba(139,148,158,.1);color:var(--text-muted)}
+
+    /* ── Voice grid ── */
+    .voice-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+    .voice-card{
+      background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--r);
+      padding:15px;display:flex;flex-direction:column;gap:10px;transition:border-color .15s;
+    }
+    .voice-card:hover{border-color:var(--primary)}
+    .vc-name{font-size:15px;font-weight:700}
+    .vc-badges{display:flex;flex-wrap:wrap;gap:4px}
+    .vc-foot{margin-top:auto;display:flex;justify-content:flex-end}
+
+    /* ── Audio result ── */
+    .audio-box{
+      background:var(--bg-surface2);border:1px solid var(--border);
+      border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:11px;
+    }
+    audio{width:100%;height:34px;accent-color:var(--primary)}
+    .audio-meta{display:flex;gap:18px;flex-wrap:wrap}
+    .am-item{display:flex;flex-direction:column;gap:2px}
+    .am-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim)}
+    .am-val{font-size:13px;font-weight:700;font-family:'SF Mono','Fira Code',ui-monospace,monospace}
+
+    /* ── Spinner ── */
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .spin{
+      width:13px;height:13px;border:2px solid rgba(255,255,255,.25);
+      border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;
+      display:inline-block;flex-shrink:0;
+    }
+
+    /* ── Slider ── */
+    .slider-row{display:flex;align-items:center;gap:11px}
+    .slider-row input[type=range]{flex:1;padding:0;height:4px;accent-color:var(--primary)}
+    .sval{font-size:13px;font-weight:700;font-family:monospace;color:var(--text);min-width:38px;text-align:right}
+
+    /* ── Client tokens panel ── */
+    .ct-panel{
+      display:none;background:var(--bg);padding:10px 14px 14px;
+      border-bottom:1px solid var(--border-dim);
+    }
+    .ct-panel.open{display:block}
+    .ct-head{
+      font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+      color:var(--text-dim);margin-bottom:8px;
+    }
+    .ct-row{
+      display:flex;align-items:center;gap:10px;padding:6px 0;
+      border-bottom:1px solid var(--border-dim);
+    }
+    .ct-row:last-child{border-bottom:none}
+    .ct-name{flex:1;font-size:13px;font-weight:600;min-width:0}
+    .ct-scopes{font-size:11px;color:var(--text-dim);font-family:monospace}
+    .exp-btn{
+      background:none;border:none;color:var(--text-muted);cursor:pointer;
+      font-size:11px;padding:2px 6px;border-radius:4px;transition:all .12s;
+    }
+    .exp-btn:hover{background:var(--bg-surface2);color:var(--text)}
+
+    /* ── Tabs ── */
+    .tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:18px}
+    .tab{
+      padding:9px 15px;font-size:13px;font-weight:500;color:var(--text-muted);
+      border-bottom:2px solid transparent;cursor:pointer;transition:all .12s;margin-bottom:-1px;
+    }
+    .tab:hover{color:var(--text)}
+    .tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+
+    /* ── Modal ── */
+    .overlay{
+      position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);
+      display:flex;align-items:center;justify-content:center;z-index:100;
+      opacity:0;pointer-events:none;transition:opacity .18s;
+    }
+    .overlay.open{opacity:1;pointer-events:all}
+    .modal{
+      background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;
+      padding:22px;width:460px;max-width:92vw;max-height:85vh;overflow-y:auto;
+      transform:translateY(8px) scale(.97);transition:transform .18s;
+    }
+    .overlay.open .modal{transform:none}
+    .modal-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    .modal-title{font-size:15px;font-weight:700}
+    .modal-ft{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+
+    /* ── Checkbox group ── */
+    .chk-group{display:flex;flex-wrap:wrap;gap:8px}
+    .chk-item{display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer}
+    .chk-item input{width:auto}
+
+    /* ── Token display ── */
+    .tok-display{
+      background:var(--bg);border:1px solid rgba(63,185,80,.25);border-radius:var(--r);
+      padding:12px;font-family:'SF Mono','Fira Code',ui-monospace,monospace;
+      font-size:12px;color:var(--green);word-break:break-all;line-height:1.6;
+    }
+
+    /* ── History ── */
+    .hist-item{
+      background:var(--bg-surface2);border:1px solid var(--border);border-radius:var(--r);
+      padding:10px 13px;cursor:pointer;display:flex;align-items:center;gap:10px;
+      transition:border-color .12s;margin-bottom:8px;
+    }
+    .hist-item:last-child{margin-bottom:0}
+    .hist-item:hover{border-color:var(--primary)}
+    .hist-ico{font-size:17px;flex-shrink:0}
+    .hist-meta{flex:1;min-width:0}
+    .hist-txt{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .hist-info{font-size:11px;color:var(--text-dim);margin-top:2px}
+
+    /* ── Stat grid ── */
+    .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;margin-bottom:18px}
+    .stat-card{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--r);padding:15px}
+    .stat-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:7px}
+    .stat-val{font-size:26px;font-weight:800;font-family:'SF Mono','Fira Code',ui-monospace,monospace;line-height:1}
+    .cv-green{color:var(--green)}.cv-red{color:var(--red)}.cv-blue{color:var(--blue)}.cv-purple{color:var(--primary)}
+
+    /* ── Metrics ── */
+    .metrics-pre{
+      background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
+      padding:14px;font-family:'SF Mono','Fira Code',ui-monospace,monospace;
+      font-size:11.5px;color:var(--text-muted);overflow:auto;max-height:380px;white-space:pre;
+    }
+
+    /* ── Section header ── */
+    .sec-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+    .sec-title{font-size:17px;font-weight:700}
+
+    /* ── Search bar ── */
+    .search-row{display:flex;gap:10px;margin-bottom:18px;align-items:center}
+    .search-row input{flex:1}
+    .search-row select{width:155px}
+
+    /* ── Divider ── */
+    .div{height:1px;background:var(--border);margin:16px 0}
+
+    /* ── Empty ── */
+    .empty{text-align:center;padding:44px 24px;color:var(--text-dim)}
+    .empty-ico{font-size:36px;margin-bottom:10px}
+    .empty-txt{font-size:13.5px}
+
+    /* ── Toasts ── */
+    #toasts{position:fixed;bottom:22px;right:22px;display:flex;flex-direction:column;gap:8px;z-index:200}
+    @keyframes tslide{from{transform:translateX(110%);opacity:0}to{transform:none;opacity:1}}
+    .toast{
+      padding:11px 15px;border-radius:var(--r);font-size:13px;font-weight:500;
+      min-width:270px;border:1px solid;animation:tslide .25s ease;
+      display:flex;align-items:center;gap:9px;box-shadow:0 8px 24px rgba(0,0,0,.4);
+    }
+    .toast-ok{background:rgba(63,185,80,.15);border-color:rgba(63,185,80,.3);color:var(--green)}
+    .toast-err{background:rgba(248,81,73,.1);border-color:rgba(248,81,73,.3);color:var(--red)}
+    .toast-info{background:rgba(88,166,255,.1);border-color:rgba(88,166,255,.3);color:var(--blue)}
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar{width:5px;height:5px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+    ::-webkit-scrollbar-thumb:hover{background:#444c56}
+
+    /* ── Utils ── */
+    .flex{display:flex}.fbet{display:flex;justify-content:space-between;align-items:center}
+    .gap8{gap:8px}.gap12{gap:12px}
+    .mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mb16{margin-bottom:16px}
+    .muted{color:var(--text-muted)}.dim{color:var(--text-dim)}
+    .mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace}
+    .sm{font-size:12px}.xs{font-size:11px}
+    code{background:var(--bg-surface2);padding:1px 5px;border-radius:3px;font-size:11.5px;font-family:monospace}
+  </style>
+</head>
+<body>
+
+<!-- ═══ Sidebar ═══ -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">🎙</div>
+    <div class="logo-text">k-<em>voice</em></div>
+  </div>
+  <nav>
+    <button class="nav-link active" data-page="synthesize" onclick="nav('synthesize')">
+      <span class="nav-ico">🎵</span> Sintetizar
+    </button>
+    <button class="nav-link" data-page="voices" onclick="nav('voices')">
+      <span class="nav-ico">🗣</span> Vozes
+    </button>
+    <div class="nav-sep">Admin</div>
+    <button class="nav-link" data-page="clients" onclick="nav('clients')">
+      <span class="nav-ico">👥</span> Clientes
+    </button>
+    <button class="nav-link" data-page="dictionary" onclick="nav('dictionary')">
+      <span class="nav-ico">📖</span> Dicionário
+    </button>
+    <button class="nav-link" data-page="health" onclick="nav('health')">
+      <span class="nav-ico">💚</span> Saúde
+    </button>
+  </nav>
+  <div class="sidebar-foot">
+    <button class="nav-link" onclick="openM('m-settings')">
+      <span class="nav-ico">⚙️</span> Configurações
+    </button>
+  </div>
+</aside>
+
+<!-- ═══ Main ═══ -->
+<div class="main">
+  <header class="topbar">
+    <div class="page-title" id="pg-title">Sintetizar</div>
+    <div class="topbar-right">
+      <div class="tok-badge no" id="tok-badge">
+        <div class="tok-dot"></div><span id="tok-txt">Sem token</span>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="openM('m-settings')">⚙</button>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <!-- ── Sintetizar ── -->
+    <div class="page active" id="page-synthesize">
+      <div style="display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:start">
+
+        <div>
+          <div class="card">
+            <div class="fbet mb16">
+              <label class="lbl" style="margin:0">Texto</label>
+              <span class="xs muted" id="char-ctr">0 / 10.000</span>
+            </div>
+            <div class="fgrp">
+              <textarea id="s-text" placeholder="Digite o texto para sintetizar…" maxlength="10000"
+                oninput="updCtr(this)"></textarea>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" class="fgrp">
+              <div>
+                <label class="lbl">Voz</label>
+                <select id="s-voice"><option value="">— carregando —</option></select>
+              </div>
+              <div>
+                <label class="lbl">Formato</label>
+                <div class="seg">
+                  <button class="btn btn-secondary active" onclick="setFmt('ogg_opus',this)">OGG</button>
+                  <button class="btn btn-secondary" onclick="setFmt('mp3_44100',this)">MP3</button>
+                  <button class="btn btn-secondary" onclick="setFmt('wav_24000',this)">WAV</button>
+                </div>
+              </div>
+            </div>
+            <div class="fgrp">
+              <label class="lbl">Velocidade</label>
+              <div class="slider-row">
+                <input type="range" id="s-speed" min="0.5" max="2.0" step="0.1" value="1.0"
+                  oninput="document.getElementById('s-sval').textContent=parseFloat(this.value).toFixed(1)+'×'">
+                <span class="sval" id="s-sval">1.0×</span>
+              </div>
+            </div>
+            <button class="btn btn-primary" id="s-btn" onclick="synthesize()" style="width:100%;justify-content:center">
+              <span>🎙</span> Sintetizar
+            </button>
+          </div>
+
+          <div class="card" id="result-card" style="display:none">
+            <div class="card-title">Resultado</div>
+            <div class="audio-box">
+              <audio id="r-audio" controls></audio>
+              <div class="audio-meta" id="r-meta"></div>
+              <div class="flex gap8">
+                <a id="r-dl" class="btn btn-secondary btn-sm" download>⬇ Download</a>
+                <button class="btn btn-ghost btn-sm" onclick="document.getElementById('result-card').style.display='none'">✕</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-title">Histórico</div>
+            <div id="hist-list">
+              <div class="empty"><div class="empty-ico">📝</div><div class="empty-txt">Nenhuma síntese ainda</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Vozes ── -->
+    <div class="page" id="page-voices">
+      <div class="sec-hd">
+        <div class="sec-title">Catálogo de vozes</div>
+        <button class="btn btn-secondary btn-sm" onclick="loadVoices()">↻ Recarregar</button>
+      </div>
+      <div class="search-row">
+        <input id="v-search" placeholder="Buscar por nome…" oninput="filterVoices()">
+        <select id="v-lang" onchange="filterVoices()">
+          <option value="">Todas as línguas</option>
+          <option value="pt-BR">pt-BR</option>
+          <option value="en-US">en-US</option>
+        </select>
+      </div>
+      <div class="voice-grid" id="voice-grid">
+        <div class="empty" style="grid-column:1/-1">
+          <div class="empty-ico">🔊</div><div class="empty-txt">Carregando…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Clientes ── -->
+    <div class="page" id="page-clients">
+      <div class="sec-hd">
+        <div class="sec-title">Clientes</div>
+        <button class="btn btn-primary btn-sm" onclick="openM('m-new-client')">+ Novo cliente</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th></th><th>Nome</th><th>ID</th><th>Status</th><th>Criado</th><th>Ações</th></tr>
+          </thead>
+          <tbody id="clients-tb">
+            <tr><td colspan="6" style="text-align:center;padding:32px" class="muted">Carregando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Dicionário ── -->
+    <div class="page" id="page-dictionary">
+      <div class="sec-title mb16">Dicionário de pronúncia</div>
+      <div class="tabs">
+        <div class="tab active" onclick="setDictTab('global',this)">Global</div>
+        <div class="tab" onclick="setDictTab('client',this)">Por cliente</div>
+      </div>
+      <div id="dict-global">
+        <div class="fbet mb16">
+          <span class="sm muted">Aplicado a todos os clientes</span>
+          <button class="btn btn-primary btn-sm" onclick="openAddPron(null)">+ Adicionar</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Termo</th><th>Expansão</th><th>Tipo</th><th></th></tr></thead>
+            <tbody id="pron-global-tb">
+              <tr><td colspan="4" style="text-align:center;padding:28px" class="muted">Carregando…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div id="dict-client" style="display:none">
+        <div class="fgrp">
+          <label class="lbl">Cliente</label>
+          <select id="dict-cl-sel" onchange="loadClientDict(this.value)">
+            <option value="">Selecione um cliente</option>
+          </select>
+        </div>
+        <div id="dict-cl-content" style="display:none">
+          <div class="fbet mb16">
+            <span class="sm muted">Sobrepõe entradas globais para o mesmo termo</span>
+            <button class="btn btn-primary btn-sm"
+              onclick="openAddPron(document.getElementById('dict-cl-sel').value)">+ Adicionar</button>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Termo</th><th>Expansão</th><th>Tipo</th><th></th></tr></thead>
+              <tbody id="pron-client-tb">
+                <tr><td colspan="4" style="text-align:center;padding:28px" class="muted">Selecione um cliente</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Saúde ── -->
+    <div class="page" id="page-health">
+      <div class="sec-hd">
+        <div class="sec-title">Saúde do sistema</div>
+        <button class="btn btn-secondary btn-sm" onclick="loadHealth()">↻ Atualizar</button>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-lbl">Status</div>
+          <div class="stat-val muted" id="h-status">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-lbl">Streams ativos</div>
+          <div class="stat-val cv-blue" id="h-streams">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-lbl">Erros totais</div>
+          <div class="stat-val" id="h-errors">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-lbl">Sintetizações</div>
+          <div class="stat-val cv-purple" id="h-done">—</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="fbet mb16">
+          <div class="card-title" style="margin-bottom:0">Métricas Prometheus</div>
+          <button class="btn btn-ghost btn-sm" onclick="loadHealth()">↻</button>
+        </div>
+        <div class="metrics-pre" id="h-metrics">Carregando…</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ═══ Modais ═══ -->
+
+<!-- Settings -->
+<div class="overlay" id="m-settings">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-title">⚙️ Configurações</div>
+      <button class="btn btn-ghost btn-sm" onclick="closeM('m-settings')">✕</button>
+    </div>
+    <div class="fgrp">
+      <label class="lbl">Token de API</label>
+      <input type="password" id="cfg-token" placeholder="kv_…" autocomplete="off">
+      <div class="fhint">Token com escopo <code>admin</code> libera todas as funcionalidades.
+        Guardado apenas na aba atual do navegador.</div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-secondary" onclick="closeM('m-settings')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveToken()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- New client -->
+<div class="overlay" id="m-new-client">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-title">Novo cliente</div>
+      <button class="btn btn-ghost btn-sm" onclick="closeM('m-new-client')">✕</button>
+    </div>
+    <div class="fgrp">
+      <label class="lbl">Nome</label>
+      <input type="text" id="nc-name" placeholder="Ex.: Klubi" onkeydown="if(event.key==='Enter')createClient()">
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-secondary" onclick="closeM('m-new-client')">Cancelar</button>
+      <button class="btn btn-primary" onclick="createClient()">Criar</button>
+    </div>
+  </div>
+</div>
+
+<!-- New token -->
+<div class="overlay" id="m-new-token">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-title">Novo token</div>
+      <button class="btn btn-ghost btn-sm" onclick="closeM('m-new-token')">✕</button>
+    </div>
+    <input type="hidden" id="nt-cid">
+    <div class="fgrp">
+      <label class="lbl">Nome</label>
+      <input type="text" id="nt-name" placeholder="Ex.: livekit-prod">
+    </div>
+    <div class="fgrp">
+      <label class="lbl">Escopos</label>
+      <div class="chk-group">
+        <label class="chk-item"><input type="checkbox" name="scope" value="admin"> admin</label>
+        <label class="chk-item"><input type="checkbox" name="scope" value="tts:stream"> tts:stream</label>
+        <label class="chk-item"><input type="checkbox" name="scope" value="tts:batch" checked> tts:batch</label>
+        <label class="chk-item"><input type="checkbox" name="scope" value="voices:read" checked> voices:read</label>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-secondary" onclick="closeM('m-new-token')">Cancelar</button>
+      <button class="btn btn-primary" onclick="createToken()">Criar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Token revealed -->
+<div class="overlay" id="m-token-ok">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-title">✅ Token criado</div>
+      <button class="btn btn-ghost btn-sm" onclick="closeM('m-token-ok')">✕</button>
+    </div>
+    <p class="sm muted mb16">Copie agora — não será exibido novamente.</p>
+    <div class="tok-display" id="tok-reveal"></div>
+    <div class="modal-ft">
+      <button class="btn btn-secondary" onclick="copyTok()">📋 Copiar</button>
+      <button class="btn btn-primary" onclick="useTok()">Usar como meu token</button>
+      <button class="btn btn-ghost" onclick="closeM('m-token-ok')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- New pronunciation entry -->
+<div class="overlay" id="m-new-pron">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-title">Adicionar entrada</div>
+      <button class="btn btn-ghost btn-sm" onclick="closeM('m-new-pron')">✕</button>
+    </div>
+    <input type="hidden" id="pron-cid">
+    <div class="fgrp">
+      <label class="lbl">Termo</label>
+      <input type="text" id="pron-term" placeholder="Ex.: PIX">
+    </div>
+    <div class="fgrp">
+      <label class="lbl">Expansão</label>
+      <input type="text" id="pron-exp" placeholder="Ex.: pix">
+    </div>
+    <div class="fgrp">
+      <label class="chk-item" style="text-transform:none;letter-spacing:0;font-size:13px;font-weight:500">
+        <input type="checkbox" id="pron-rx"> É expressão regular
+      </label>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-secondary" onclick="closeM('m-new-pron')">Cancelar</button>
+      <button class="btn btn-primary" onclick="createPron()">Adicionar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let _tok = sessionStorage.getItem('kv_token') || '';
+let _fmt = 'ogg_opus';
+let _voices = [];
+let _clients = [];
+let _newTok = '';
+let _history = [];
+try { _history = JSON.parse(localStorage.getItem('kv_hist') || '[]'); } catch {}
+
+const TITLES = {
+  synthesize: 'Sintetizar', voices: 'Catálogo de vozes',
+  clients: 'Clientes', dictionary: 'Dicionário de pronúncia', health: 'Saúde do sistema',
+};
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+function init() {
+  updTokBadge();
+  renderHist();
+  if (_tok) {
+    loadVoicesSel();
+    loadVoices();
+  }
+  const hash = location.hash.replace('#', '');
+  if (TITLES[hash]) nav(hash, false);
+}
+
+// ─── Navigation ───────────────────────────────────────────────────────────────
+function nav(page, pushHash = true) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  document.getElementById('page-' + page)?.classList.add('active');
+  document.querySelector(`[data-page="${page}"]`)?.classList.add('active');
+  document.getElementById('pg-title').textContent = TITLES[page] || page;
+  if (pushHash) location.hash = page;
+  if (page === 'voices') loadVoices();
+  else if (page === 'clients') loadClients();
+  else if (page === 'dictionary') { loadGlobalDict(); loadClientsForDict(); }
+  else if (page === 'health') loadHealth();
+}
+
+// ─── Token ────────────────────────────────────────────────────────────────────
+function updTokBadge() {
+  const b = document.getElementById('tok-badge');
+  const t = document.getElementById('tok-txt');
+  if (_tok) { b.className = 'tok-badge ok'; t.textContent = 'Token ativo'; }
+  else { b.className = 'tok-badge no'; t.textContent = 'Sem token'; }
+}
+
+function saveToken() {
+  _tok = document.getElementById('cfg-token').value.trim();
+  if (_tok) sessionStorage.setItem('kv_token', _tok);
+  else sessionStorage.removeItem('kv_token');
+  updTokBadge();
+  closeM('m-settings');
+  toast('Token salvo', 'ok');
+  loadVoicesSel();
+}
+
+function copyTok() {
+  navigator.clipboard.writeText(_newTok).then(() => toast('Copiado!', 'ok'));
+}
+
+function useTok() {
+  _tok = _newTok;
+  sessionStorage.setItem('kv_token', _tok);
+  updTokBadge();
+  closeM('m-token-ok');
+  toast('Token ativado!', 'ok');
+  loadVoicesSel();
+}
+
+// ─── API ──────────────────────────────────────────────────────────────────────
+async function api(method, path, body, raw = false) {
+  if (!_tok) { toast('Configure um token em Configurações', 'err'); return null; }
+  const opts = { method, headers: { Authorization: 'Bearer ' + _tok } };
+  if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const r = await fetch(path, opts);
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({ detail: r.statusText }));
+    throw new Error(e.detail || `HTTP ${r.status}`);
+  }
+  if (raw) return r;
+  if (r.status === 204) return null;
+  return r.json();
+}
+
+// ─── Synthesize ───────────────────────────────────────────────────────────────
+function updCtr(el) {
+  document.getElementById('char-ctr').textContent = `${el.value.length.toLocaleString('pt-BR')} / 10.000`;
+}
+
+function setFmt(fmt, btn) {
+  _fmt = fmt;
+  btn.closest('.seg').querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function synthesize() {
+  const text = document.getElementById('s-text').value.trim();
+  const vid = document.getElementById('s-voice').value;
+  if (!text) { toast('Digite um texto', 'err'); return; }
+  if (!vid) { toast('Selecione uma voz', 'err'); return; }
+  const btn = document.getElementById('s-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Sintetizando…';
+  const t0 = performance.now();
+  try {
+    const res = await api('POST', '/v1/tts', { text, voice_id: vid, format: _fmt, delivery: 'bytes' }, true);
+    if (!res) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const elapsed = Math.round(performance.now() - t0);
+    const dms = res.headers.get('X-Duration-Ms');
+    const rid = res.headers.get('X-Request-Id');
+    const ext = { ogg_opus: 'ogg', mp3_44100: 'mp3', wav_24000: 'wav' }[_fmt] || 'bin';
+    const audio = document.getElementById('r-audio');
+    audio.src = url;
+    document.getElementById('r-meta').innerHTML = `
+      ${amItem('Duração', dms ? (dms / 1000).toFixed(2) + 's' : '—')}
+      ${amItem('Latência', elapsed + 'ms')}
+      ${amItem('Formato', _fmt)}
+      ${amItem('Chars', text.length)}
+      ${amItem('ID', rid ? rid.slice(0, 8) + '…' : '—')}
+    `;
+    const dl = document.getElementById('r-dl');
+    dl.href = url; dl.download = `kvoice_${Date.now()}.${ext}`;
+    document.getElementById('result-card').style.display = '';
+    audio.play().catch(() => {});
+    const vname = _voices.find(v => v.id === vid)?.name || vid;
+    addHist({ text, vid, vname, fmt: _fmt, url, ext, dms, rid, ts: Date.now() });
+    toast('Áudio gerado!', 'ok');
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
+  finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>🎙</span> Sintetizar';
+  }
+}
+
+function amItem(lbl, val) {
+  return `<div class="am-item"><div class="am-lbl">${lbl}</div><div class="am-val">${esc(String(val))}</div></div>`;
+}
+
+function addHist(item) {
+  _history.unshift(item);
+  if (_history.length > 10) _history = _history.slice(0, 10);
+  const save = _history.map(h => ({ ...h, url: null }));
+  try { localStorage.setItem('kv_hist', JSON.stringify(save)); } catch {}
+  renderHist();
+}
+
+function renderHist() {
+  const el = document.getElementById('hist-list');
+  if (!_history.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-ico">📝</div><div class="empty-txt">Nenhuma síntese ainda</div></div>';
+    return;
+  }
+  el.innerHTML = _history.slice(0, 6).map((h, i) => `
+    <div class="hist-item" onclick="restoreHist(${i})">
+      <div class="hist-ico">🔊</div>
+      <div class="hist-meta">
+        <div class="hist-txt">${esc(h.text)}</div>
+        <div class="hist-info">${esc(h.vname)} · ${h.fmt} · ${new Date(h.ts).toLocaleTimeString('pt-BR')}</div>
+      </div>
+      ${h.url ? `<a href="${h.url}" download="kvoice.${h.ext}" onclick="event.stopPropagation()" class="btn btn-ghost btn-xs">⬇</a>` : ''}
+    </div>
+  `).join('');
+}
+
+function restoreHist(i) {
+  const h = _history[i];
+  if (!h) return;
+  document.getElementById('s-text').value = h.text;
+  updCtr(document.getElementById('s-text'));
+  if (h.vid) document.getElementById('s-voice').value = h.vid;
+  if (h.url) {
+    document.getElementById('r-audio').src = h.url;
+    document.getElementById('result-card').style.display = '';
+  }
+}
+
+// ─── Voices ───────────────────────────────────────────────────────────────────
+async function loadVoicesSel() {
+  const sel = document.getElementById('s-voice');
+  try {
+    _voices = await api('GET', '/v1/voices') || [];
+    sel.innerHTML = _voices.length
+      ? _voices.map(v => `<option value="${v.id}">${esc(v.name)} (${v.language})</option>`).join('')
+      : '<option value="">Nenhuma voz cadastrada</option>';
+  } catch { sel.innerHTML = '<option value="">Erro ao carregar vozes</option>'; }
+}
+
+async function loadVoices() {
+  const g = document.getElementById('voice-grid');
+  g.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⏳</div><div class="empty-txt">Carregando…</div></div>';
+  try {
+    _voices = await api('GET', '/v1/voices') || [];
+    renderVoices();
+  } catch (e) {
+    g.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚠️</div><div class="empty-txt">${esc(e.message)}</div></div>`;
+  }
+}
+
+function renderVoices() {
+  const q = document.getElementById('v-search').value.toLowerCase();
+  const lang = document.getElementById('v-lang').value;
+  const list = _voices.filter(v => (!q || v.name.toLowerCase().includes(q)) && (!lang || v.language === lang));
+  const g = document.getElementById('voice-grid');
+  if (!list.length) {
+    g.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-ico">🔍</div><div class="empty-txt">Nenhuma voz encontrada</div></div>';
+    return;
+  }
+  g.innerHTML = list.map(v => `
+    <div class="voice-card">
+      <div class="vc-name">${esc(v.name)}</div>
+      <div class="vc-badges">
+        <span class="badge bb">${v.language}</span>
+        ${v.gender ? `<span class="badge bp">${v.gender}</span>` : ''}
+        ${v.style ? `<span class="badge bk">${v.style}</span>` : ''}
+        ${v.age_range ? `<span class="badge by">${v.age_range}</span>` : ''}
+        <span class="badge ${v.origin === 'preset' ? 'bg' : 'bb'}">${v.origin}</span>
+      </div>
+      <div class="vc-foot">
+        <button class="btn btn-secondary btn-sm" onclick="testVoice('${v.id}')">▶ Testar</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterVoices() { renderVoices(); }
+
+function testVoice(vid) {
+  document.getElementById('s-voice').value = vid;
+  nav('synthesize');
+  toast('Voz selecionada', 'info');
+}
+
+// ─── Clients ──────────────────────────────────────────────────────────────────
+async function loadClients() {
+  const tb = document.getElementById('clients-tb');
+  tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px" class="muted">Carregando…</td></tr>';
+  try {
+    _clients = await api('GET', '/admin/clients') || [];
+    renderClients();
+  } catch (e) {
+    tb.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--red)">${esc(e.message)}</td></tr>`;
+  }
+}
+
+function renderClients() {
+  const tb = document.getElementById('clients-tb');
+  if (!_clients.length) {
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px" class="muted">Nenhum cliente cadastrado</td></tr>';
+    return;
+  }
+  tb.innerHTML = _clients.map(c => `
+    <tr>
+      <td><button class="exp-btn" onclick="toggleToks('${c.id}',this)">▶</button></td>
+      <td style="font-weight:600">${esc(c.name)}</td>
+      <td><span class="mono xs muted">${c.id.slice(0,8)}…</span></td>
+      <td><span class="badge ${c.is_active ? 'bg' : 'br'}">${c.is_active ? 'ativo' : 'inativo'}</span></td>
+      <td class="sm muted">${fmtDt(c.created_at)}</td>
+      <td><button class="btn btn-secondary btn-sm" onclick="openNewTokM('${c.id}')">+ Token</button></td>
+    </tr>
+    <tr><td colspan="6" style="padding:0">
+      <div class="ct-panel" id="ct-${c.id}">
+        <div class="ct-head">Tokens</div>
+        <div id="ct-list-${c.id}" class="sm muted">Carregando…</div>
+      </div>
+    </td></tr>
+  `).join('');
+}
+
+async function toggleToks(cid, btn) {
+  const p = document.getElementById('ct-' + cid);
+  const open = p.classList.toggle('open');
+  btn.textContent = open ? '▼' : '▶';
+  if (open) await loadToksForClient(cid);
+}
+
+async function loadToksForClient(cid) {
+  const el = document.getElementById('ct-list-' + cid);
+  try {
+    const toks = await api('GET', `/admin/clients/${cid}/tokens`) || [];
+    if (!toks.length) { el.textContent = 'Nenhum token'; return; }
+    el.innerHTML = toks.map(t => `
+      <div class="ct-row">
+        <span class="ct-name">${esc(t.name)}</span>
+        <span class="ct-scopes">${esc((t.scopes_list || []).join(', '))}</span>
+        <span class="sm muted">${fmtDt(t.created_at)}</span>
+        <span class="badge ${t.is_active ? 'bg' : 'br'}">${t.is_active ? 'ativo' : 'revogado'}</span>
+        ${t.is_active ? `<button class="btn btn-danger btn-xs" onclick="revokeTok('${cid}','${t.id}')">Revogar</button>` : ''}
+      </div>
+    `).join('');
+  } catch (e) { el.textContent = 'Erro: ' + e.message; }
+}
+
+async function createClient() {
+  const name = document.getElementById('nc-name').value.trim();
+  if (!name) { toast('Digite um nome', 'err'); return; }
+  try {
+    const c = await api('POST', '/admin/clients', { name });
+    _clients.unshift(c);
+    renderClients();
+    closeM('m-new-client');
+    document.getElementById('nc-name').value = '';
+    toast(`Cliente "${c.name}" criado`, 'ok');
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
+}
+
+function openNewTokM(cid) {
+  document.getElementById('nt-cid').value = cid;
+  document.getElementById('nt-name').value = '';
+  openM('m-new-token');
+}
+
+async function createToken() {
+  const cid = document.getElementById('nt-cid').value;
+  const name = document.getElementById('nt-name').value.trim();
+  const scopes = [...document.querySelectorAll('[name="scope"]:checked')].map(c => c.value);
+  if (!name) { toast('Digite um nome', 'err'); return; }
+  try {
+    const t = await api('POST', `/admin/clients/${cid}/tokens`, { name, scopes });
+    closeM('m-new-token');
+    _newTok = t.token;
+    document.getElementById('tok-reveal').textContent = t.token;
+    openM('m-token-ok');
+    const p = document.getElementById('ct-' + cid);
+    if (p?.classList.contains('open')) loadToksForClient(cid);
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
+}
+
+async function revokeTok(cid, tid) {
+  if (!confirm('Revogar este token?')) return;
+  try {
+    await api('DELETE', `/admin/clients/${cid}/tokens/${tid}`);
+    toast('Token revogado', 'ok');
+    loadToksForClient(cid);
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
+}
+
+// ─── Dictionary ───────────────────────────────────────────────────────────────
+function setDictTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('dict-global').style.display = tab === 'global' ? '' : 'none';
+  document.getElementById('dict-client').style.display = tab === 'client' ? '' : 'none';
+}
+
+async function loadGlobalDict() {
+  const tb = document.getElementById('pron-global-tb');
+  try {
+    const entries = await api('GET', '/admin/pronunciation') || [];
+    renderPronTb(tb, entries, null);
+  } catch (e) {
+    tb.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--red)">${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function loadClientsForDict() {
+  const sel = document.getElementById('dict-cl-sel');
+  try {
+    if (!_clients.length) _clients = await api('GET', '/admin/clients') || [];
+    sel.innerHTML = '<option value="">Selecione um cliente</option>' +
+      _clients.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  } catch {}
+}
+
+async function loadClientDict(cid) {
+  if (!cid) { document.getElementById('dict-cl-content').style.display = 'none'; return; }
+  document.getElementById('dict-cl-content').style.display = '';
+  const tb = document.getElementById('pron-client-tb');
+  try {
+    const entries = await api('GET', `/admin/clients/${cid}/pronunciation`) || [];
+    renderPronTb(tb, entries, cid);
+  } catch (e) {
+    tb.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--red)">${esc(e.message)}</td></tr>`;
+  }
+}
+
+function renderPronTb(tb, entries, cid) {
+  if (!entries.length) {
+    tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px" class="muted">Nenhuma entrada</td></tr>';
+    return;
+  }
+  tb.innerHTML = entries.map(e => `
+    <tr>
+      <td class="mono" style="font-weight:600">${esc(e.term)}</td>
+      <td>${esc(e.expansion)}</td>
+      <td>${e.is_regex ? '<span class="badge by">regex</span>' : '<span class="badge bk">literal</span>'}</td>
+      <td><button class="btn btn-danger btn-xs" onclick="delPron('${e.id}',${cid ? `'${cid}'` : 'null'})">Remover</button></td>
+    </tr>
+  `).join('');
+}
+
+function openAddPron(cid) {
+  document.getElementById('pron-cid').value = cid || '';
+  document.getElementById('pron-term').value = '';
+  document.getElementById('pron-exp').value = '';
+  document.getElementById('pron-rx').checked = false;
+  openM('m-new-pron');
+}
+
+async function createPron() {
+  const cid = document.getElementById('pron-cid').value || null;
+  const term = document.getElementById('pron-term').value.trim();
+  const expansion = document.getElementById('pron-exp').value.trim();
+  const is_regex = document.getElementById('pron-rx').checked;
+  if (!term || !expansion) { toast('Preencha todos os campos', 'err'); return; }
+  try {
+    const path = cid ? `/admin/clients/${cid}/pronunciation` : '/admin/pronunciation';
+    await api('POST', path, { term, expansion, is_regex });
+    closeM('m-new-pron');
+    toast('Entrada adicionada', 'ok');
+    if (cid) loadClientDict(cid); else loadGlobalDict();
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
+}
+
+async function delPron(id, cid) {
+  if (!confirm('Remover esta entrada?')) return;
+  try {
+    await api('DELETE', `/admin/pronunciation/${id}`);
+    toast('Entrada removida', 'ok');
+    if (cid) loadClientDict(cid); else loadGlobalDict();
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
+}
+
+// ─── Health ───────────────────────────────────────────────────────────────────
+async function loadHealth() {
+  // /health is unauthenticated
+  try {
+    const h = await fetch('/health').then(r => r.json());
+    const el = document.getElementById('h-status');
+    el.textContent = h.status === 'ok' ? '✓ ok' : '✗';
+    el.className = 'stat-val ' + (h.status === 'ok' ? 'cv-green' : 'cv-red');
+  } catch {
+    document.getElementById('h-status').textContent = '✗';
+    document.getElementById('h-status').className = 'stat-val cv-red';
+  }
+  try {
+    const raw = await fetch('/metrics').then(r => r.text());
+    document.getElementById('h-metrics').textContent = raw;
+    const streams = raw.match(/kvoice_streams_active\s+([\d.]+)/)?.[1] ?? '0';
+    document.getElementById('h-streams').textContent = streams;
+    let errs = '0';
+    for (const m of raw.matchAll(/kvoice_streams_errors_total\{[^}]*\}\s+([\d.]+)/g)) {
+      errs = String(parseFloat(errs) + parseFloat(m[1]));
+    }
+    const errEl = document.getElementById('h-errors');
+    errEl.textContent = parseFloat(errs).toFixed(0);
+    errEl.className = 'stat-val ' + (parseFloat(errs) > 0 ? 'cv-red' : 'cv-green');
+    const done = raw.match(/kvoice_streams_done_total\s+([\d.]+)/)?.[1] ?? '—';
+    document.getElementById('h-done').textContent = done;
+  } catch (e) {
+    document.getElementById('h-metrics').textContent = 'Erro: ' + e.message;
+  }
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+function openM(id) {
+  document.getElementById(id).classList.add('open');
+  if (id === 'm-settings') document.getElementById('cfg-token').value = _tok;
+  document.getElementById(id).onclick = e => { if (e.target.id === id) closeM(id); };
+}
+function closeM(id) { document.getElementById(id).classList.remove('open'); }
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape')
+    document.querySelectorAll('.overlay.open').forEach(o => o.classList.remove('open'));
+});
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+  const icons = { ok: '✓', err: '✕', info: 'ℹ' };
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.innerHTML = `<span>${icons[type] || ''}</span><span>${esc(msg)}</span>`;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDt(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('pt-BR', {
+    day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit'
+  });
+}
+
+init();
+</script>
+</body>
+</html>
