@@ -402,6 +402,9 @@ wheels = [
 name = "kvoice"
 version = "0.1.0"
 source = { editable = "." }
+dependencies = [
+    { name = "numpy" },
+]
 
 [package.dev-dependencies]
 bench = [
@@ -422,6 +425,7 @@ dev = [
 ]
 
 [package.metadata]
+requires-dist = [{ name = "numpy", specifier = ">=2.0" }]
 
 [package.metadata.requires-dev]
 bench = [

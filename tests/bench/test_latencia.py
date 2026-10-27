@@ -3,6 +3,7 @@
 import pytest
 
 np = pytest.importorskip("numpy")
+pytest.importorskip("tqdm")
 
 import sys  # noqa: E402
 from pathlib import Path  # noqa: E402
