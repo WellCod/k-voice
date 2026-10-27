@@ -8,13 +8,13 @@ Numeração dos PRs é a ordem planejada; no GitHub vale o número real.
 
 Pergunta: algum modelo aberto, com licença comercial, empata com a ElevenLabs em áudio de telefone pt-BR e aguenta a concorrência com latência na meta?
 
-- [ ] PR 1 — `chore: scaffolding do projeto python`
+- [x] PR 1 — `chore: scaffolding do projeto python`
   `git init` próprio na pasta (ela está dentro de `Documents`, que já é um repositório git), uv, Python 3.12, ruff, mypy strict, pytest, CI (lint, tipos, testes), estrutura `src/kvoice`, `bench/`, `docs/`.
-- [ ] PR 2 — `feat(bench): síntese offline com qwen3-tts, chatterbox pt-br, kokoro e elevenlabs`
+- [x] PR 2 — `feat(bench): síntese offline com qwen3-tts, chatterbox pt-br, kokoro e elevenlabs`
   Script que gera o mesmo conjunto de frases (`bench/frases.yaml`, ver [teste-cego.md](teste-cego.md)) em cada motor, com vozes equivalentes, e grava WAV + metadados.
-- [ ] PR 3 — `feat(bench): áudio de telefone e página do teste cego`
+- [x] PR 3 — `feat(bench): áudio de telefone e página do teste cego`
   Degradação para 8 kHz μ-law (e Opus de WebRTC), página HTML estática com teste ABX e nota MOS, exportação das respostas em CSV, análise estatística.
-- [ ] PR 4 — `feat(bench): latência e concorrência em gpu`
+- [x] PR 4 — `feat(bench): latência e concorrência em gpu`
   TTFA p50/p95 e RTF com 1, 4, 8, 16, 32 streams simultâneos, texto chegando em pedaços como sai de um LLM. Mesmo teste contra a ElevenLabs a partir da mesma região.
 - [ ] PR 5 — `docs: resultado da fase 0`
   Números, áudios de exemplo, decisão. ADR-0002 vira aceito ou o projeto para ([escopo.md](escopo.md), critério de parada).
