@@ -43,7 +43,7 @@ Gate: métricas de [operacao.md](operacao.md) dentro da meta a 10% por 7 dias, s
 
 ## Fase 3 — Lote, WhatsApp, MCP e compatibilidade
 
-- [ ] PR 14 — `feat(api): síntese em lote com ogg opus e entrega por url assinada`
+- [x] PR 14 — `feat(api): síntese em lote com ogg opus e entrega por url assinada`
 - [ ] PR 15 — `feat(mcp): servidor mcp com synthesize, list_voices e get_voice`
 - [ ] PR 16 — `feat(compat): subconjunto da api da elevenlabs`
   Só o que [paridade-elevenlabs.md](paridade-elevenlabs.md) marcar como usado.
