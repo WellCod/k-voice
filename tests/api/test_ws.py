@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+import time
 import types
 import uuid
 from collections.abc import AsyncGenerator
@@ -324,3 +326,68 @@ def test_ws_cancel(engine: _FakeEngine, fake_client: Any, fake_token: Any, fake_
         ws.send_json({"type": "text", "text": "texto"})
         ws.send_json({"type": "cancel"})
         # conexão encerra sem mensagem done
+
+
+# ---------------------------------------------------------------------------
+# Gate da Fase 1 — funcionalidade (sem GPU; threshold generoso para CPU)
+# ---------------------------------------------------------------------------
+
+
+def test_ws_concorrencia(
+    engine: _FakeEngine, fake_client: Any, fake_token: Any, fake_voice: Any
+) -> None:
+    """N streams simultâneos completam sem deadlock ou erro."""
+    N = 4
+    app = _make_app()
+    resultados: list[str] = []
+    lock = threading.Lock()
+
+    def _sessao() -> None:
+        with (
+            TestClient(app) as client,
+            client.websocket_connect("/v1/tts/stream?token=tok") as ws,
+        ):
+            ws.send_json({"type": "start", "voice_id": "v_fake"})
+            ws.receive_json()  # started
+            ws.send_json({"type": "text", "text": "Olá, tudo bem com você hoje?"})
+            ws.send_json({"type": "end"})
+            ws.receive_bytes()  # primeiro chunk de áudio
+            msg = ws.receive_json()
+            with lock:
+                resultados.append(msg.get("type", ""))
+
+    with _auth_patch(fake_client, fake_token), _voice_patch(fake_voice), _uso_patch():
+        threads = [threading.Thread(target=_sessao) for _ in range(N)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+    assert len(resultados) == N, f"esperado {N} respostas, recebido {len(resultados)}"
+    assert all(r == "done" for r in resultados)
+
+
+def test_ws_cancel_timing(
+    engine: _FakeEngine, fake_client: Any, fake_token: Any, fake_voice: Any
+) -> None:
+    """Cancelamento para o stream; WS fecha em < 500 ms em CPU sem motor real."""
+    app = _make_app()
+    t0: float = 0.0
+    with (
+        _auth_patch(fake_client, fake_token),
+        _voice_patch(fake_voice),
+        _uso_patch(),
+        TestClient(app) as client,
+        client.websocket_connect("/v1/tts/stream?token=tok") as ws,
+    ):
+        ws.send_json({"type": "start", "voice_id": "v_fake"})
+        ws.receive_json()  # started
+        ws.send_json({"type": "text", "text": "Olá mundo, como vai você hoje?"})
+
+        t0 = time.monotonic()
+        ws.send_json({"type": "cancel"})
+        # Sai do with imediatamente; TestClient aguarda o handler encerrar.
+
+    elapsed_ms = (time.monotonic() - t0) * 1000
+    # 500 ms de folga para CPU/CI — gate real (50 ms) é medido em GPU com motor real
+    assert elapsed_ms < 500, f"cancelamento demorou {elapsed_ms:.0f} ms"

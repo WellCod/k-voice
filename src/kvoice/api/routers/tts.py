@@ -299,3 +299,6 @@ async def _executar_stream(
         )
     else:
         streams_cancelled.inc()
+        # Fecha explicitamente; sem isso o TestClient bloqueia em receive após cancel.
+        with contextlib.suppress(Exception):
+            await websocket.close()
