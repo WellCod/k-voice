@@ -37,6 +37,11 @@ bench = [
     "elevenlabs>=1.11",
     "websockets>=13.0",
 ]
+livekit = [
+    "livekit-agents>=1.8",
+    "websockets>=13.0",
+    "livekit-plugins-elevenlabs>=1.8",
+]
 
 [tool.ruff]
 target-version = "py312"
@@ -53,6 +58,14 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 strict = true
 python_version = "3.12"
 files = ["src"]
+
+[[tool.mypy.overrides]]
+module = ["livekit.*", "websockets.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["kvoice.livekit", "kvoice.livekit.*"]
+ignore_errors = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
