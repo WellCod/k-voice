@@ -193,9 +193,6 @@
     }
     /* ── Anel de progresso SVG ── */
     .prog-ring{width:18px;height:18px;flex-shrink:0;transform:rotate(-90deg)}
-    .prog-ring-bg{fill:none;stroke:rgba(255,255,255,.2);stroke-width:2.5}
-    .prog-ring-arc{fill:none;stroke:#fff;stroke-width:2.5;stroke-linecap:round;
-      stroke-dasharray:50.3;stroke-dashoffset:50.3;transition:stroke-dashoffset .4s linear}
 
     /* ── Slider ── */
     .slider-row{display:flex;align-items:center;gap:11px}
@@ -468,6 +465,9 @@
             <button class="btn btn-primary" id="s-btn" onclick="synthesize()" style="width:100%;justify-content:center">
               <span>🎙</span> Sintetizar
             </button>
+            <div id="srv-busy" style="display:none;margin-top:8px;font-size:12px;color:var(--yellow);text-align:center">
+              O servidor está processando uma síntese — aguarde ou recarregue quando terminar.
+            </div>
           </div>
 
           <div class="card" id="result-card" style="display:none">
@@ -1060,11 +1060,16 @@ async function synthesize() {
   const t0 = performance.now();
   // ~40 ms/char é estimativa conservadora para Qwen3 em GPU; limita em 95% até resposta
   const _estMs = Math.max(2000, text.length * 40);
-  const _circ = 50.3; // 2π × r=8
+  // SVG com atributos inline para evitar dependência de CSS e rerender seguro
   function _progSvg(pct) {
-    const off = _circ * (1 - pct / 100);
-    return `<svg class="prog-ring" viewBox="0 0 20 20"><circle class="prog-ring-bg" cx="10" cy="10" r="8"/><circle class="prog-ring-arc" cx="10" cy="10" r="8" style="stroke-dashoffset:${off.toFixed(1)}"/></svg>`;
+    const off = (50.3 * (1 - pct / 100)).toFixed(1);
+    return `<svg class="prog-ring" viewBox="0 0 20 20">` +
+      `<circle cx="10" cy="10" r="8" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="2.5"/>` +
+      `<circle cx="10" cy="10" r="8" fill="none" stroke="#fff" stroke-width="2.5" ` +
+      `stroke-linecap="round" stroke-dasharray="50.3" stroke-dashoffset="${off}"/>` +
+      `</svg>`;
   }
+  document.getElementById('srv-busy').style.display = 'none';
   btn.innerHTML = `${_progSvg(0)} Sintetizando… 0%`;
   _synthTimerHandle = setInterval(() => {
     const pct = Math.min(95, Math.round((performance.now() - t0) / _estMs * 100));
@@ -1232,14 +1237,21 @@ async function pollHealth() {
     const active = d.active || 0;
     const badge = document.getElementById('eng-badge');
     const txt = document.getElementById('eng-txt');
+    const srvBusy = document.getElementById('srv-busy');
+    const sBtn = document.getElementById('s-btn');
     if (active > 0) {
       badge.classList.add('visible');
       txt.textContent = `${active} síntese${active > 1 ? 's' : ''} ativa${active > 1 ? 's' : ''}`;
+      // mostra aviso apenas quando o botão está ocioso (não em síntese iniciada por esta aba)
+      if (srvBusy && sBtn && !sBtn.disabled) srvBusy.style.display = '';
     } else {
       badge.classList.remove('visible');
+      if (srvBusy) srvBusy.style.display = 'none';
     }
   } catch {
     document.getElementById('eng-badge').classList.remove('visible');
+    const srvBusy = document.getElementById('srv-busy');
+    if (srvBusy) srvBusy.style.display = 'none';
   }
 }
 
