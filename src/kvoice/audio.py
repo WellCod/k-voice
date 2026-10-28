@@ -24,6 +24,7 @@ def _ffmpeg_bin() -> str:
         return matches[0]
     return "ffmpeg"
 
+
 _CONTENT_TYPES: dict[str, str] = {
     "ogg_opus": "audio/ogg; codecs=opus",
     "mp3_44100": "audio/mpeg",

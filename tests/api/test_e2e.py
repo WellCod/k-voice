@@ -98,8 +98,14 @@ def fake_token() -> Any:
 @pytest.fixture()
 def fake_voice() -> Any:
     return types.SimpleNamespace(
-        id="v_fake", name="Fake", language="pt-BR", is_active=True,
-        style_prompt=None, model_id=None, ref_audio_key=None, ref_text=None
+        id="v_fake",
+        name="Fake",
+        language="pt-BR",
+        is_active=True,
+        style_prompt=None,
+        model_id=None,
+        ref_audio_key=None,
+        ref_text=None,
     )
 
 
