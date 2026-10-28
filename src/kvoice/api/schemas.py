@@ -87,6 +87,17 @@ class VoiceResponse(BaseModel):
     created_at: datetime
 
 
+class VoiceConsentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    voice_id: str
+    consenter_name: str
+    consenter_email: str
+    audio_key: str
+    created_at: datetime
+
+
 # -----------------------------------------------------------------------
 # Usage event
 # -----------------------------------------------------------------------
@@ -160,6 +171,7 @@ class BatchRequest(BaseModel):
     format: Literal["ogg_opus", "mp3_44100", "wav_24000"] = "ogg_opus"
     delivery: Literal["url", "bytes"] = "url"
     url_ttl_s: int = Field(default=86400, ge=60, le=604800)
+    style_prompt: str | None = Field(default=None, max_length=500)
 
 
 class BatchResponse(BaseModel):

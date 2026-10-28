@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Query, Response, WebSocket, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from starlette.websockets import WebSocketDisconnect
 
 from kvoice.api.auth import hash_token
@@ -53,6 +54,7 @@ async def _autenticar_ws(token: str) -> tuple[Client, ApiToken] | None:
                 ApiToken.is_active.is_(True),
                 Client.is_active.is_(True),
             )
+            .options(selectinload(ApiToken.client))
         )
         record = result.scalar_one_or_none()
         if record is None:
@@ -123,9 +125,13 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
     voice = Voice(
         id=decision.effective_voice_id,
         name=orm_voice.name,
+        language=orm_voice.language,
+        model_id=orm_voice.model_id,
+        ref_audio=orm_voice.ref_audio_key,
+        ref_text=orm_voice.ref_text,
         style_prompt=orm_voice.style_prompt,
     )
-    opts = SynthOptions(format=body.format)
+    opts = SynthOptions(format=body.format, style=body.style_prompt or "neutro")
     pron = await load_dict(client.id)
     normalized = normalize(apply_dict(body.text, pron))
 
@@ -258,6 +264,10 @@ async def _executar_com_engine(
     voice = Voice(
         id=decision.effective_voice_id,
         name=orm_voice.name,
+        language=orm_voice.language,
+        model_id=orm_voice.model_id,
+        ref_audio=orm_voice.ref_audio_key,
+        ref_text=orm_voice.ref_text,
         style_prompt=orm_voice.style_prompt,
     )
     opts = SynthOptions(
