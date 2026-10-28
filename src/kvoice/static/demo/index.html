@@ -448,6 +448,7 @@
                 <span class="chip" onclick="selStyle('fale com animação e energia',this)">Animado</span>
                 <span class="chip" onclick="selStyle('sussurre suavemente',this)">Sussurro</span>
                 <span class="chip" onclick="selStyle('fale com tristeza e melancolia',this)">Triste</span>
+                <span class="chip" onclick="selStyle('fale em português brasileiro com dicção clara, boa articulação e pronúncia nativa',this)">Dicção clara</span>
                 <span class="chip" onclick="selStyle('__custom__',this)">✏ Personalizado</span>
               </div>
               <input type="text" id="style-custom" placeholder="Instrução de estilo em texto livre…"
@@ -881,6 +882,35 @@
   </div>
 </div>
 
+<!-- Edit style prompt -->
+<div class="overlay" id="m-prompt">
+  <div class="modal" style="width:480px">
+    <div class="modal-hd">
+      <div class="modal-title">✏ Instrução de estilo — <span id="mp-name"></span></div>
+      <button class="btn btn-ghost btn-sm" onclick="closeM('m-prompt')">✕</button>
+    </div>
+    <input type="hidden" id="mp-vid">
+    <div class="fgrp">
+      <label class="lbl">Instrução padrão <span class="xs muted">(em inglês)</span></label>
+      <textarea id="mp-prompt" style="min-height:80px"
+        placeholder="Ex.: Speak with clear Brazilian Portuguese pronunciation, careful diction and natural intonation."></textarea>
+      <div class="fhint">Aplicada em toda síntese desta voz. Pode ser sobreposta pelos chips de estilo na síntese.</div>
+    </div>
+    <div class="fgrp" style="margin-bottom:0">
+      <label class="lbl xs muted">Atalhos de pronúncia pt-BR</label>
+      <div class="chip-grp" style="margin-top:6px">
+        <span class="chip" onclick="appendPrompt('Speak with clear Brazilian Portuguese pronunciation and natural intonation.')">Pt-BR geral</span>
+        <span class="chip" onclick="appendPrompt('Pronounce all words carefully with native Brazilian Portuguese accent.')">Sotaque nativo</span>
+        <span class="chip" onclick="appendPrompt('Speak slowly and articulate each word clearly.')">Articulação</span>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-secondary" onclick="closeM('m-prompt')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePrompt()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toasts"></div>
 
 <script>
@@ -1143,7 +1173,7 @@ function renderVoices() {
         <span class="badge ${v.origin === 'preset' ? 'bg' : v.origin === 'clone' ? 'bp' : 'bb'}">${v.origin}</span>
       </div>
       <div class="vc-foot" style="gap:6px">
-        ${v.origin === 'clone' ? `<button class="btn btn-ghost btn-sm" onclick="openCloneUpdateM('${v.id}','${esc(v.name)}')">🔄 Ref.</button>` : ''}
+        ${v.origin === 'clone' ? `<button class="btn btn-ghost btn-sm" onclick="openCloneUpdateM('${v.id}','${esc(v.name)}')">🔄 Ref.</button>` : `<button class="btn btn-ghost btn-sm" onclick="openPromptM('${v.id}','${esc(v.name)}',${JSON.stringify(v.style_prompt||'')})">✏ Instrução</button>`}
         <button class="btn btn-secondary btn-sm" onclick="testVoice('${v.id}')">▶ Testar</button>
       </div>
     </div>
@@ -1658,6 +1688,32 @@ async function submitClone() {
     btn.disabled = false;
     btn.textContent = originalLabel;
   }
+}
+
+// ─── Style Prompt Editor ──────────────────────────────────────────────────────
+function openPromptM(vid, vname, current) {
+  document.getElementById('mp-vid').value = vid;
+  document.getElementById('mp-name').textContent = vname;
+  document.getElementById('mp-prompt').value = current || '';
+  openM('m-prompt');
+}
+
+function appendPrompt(text) {
+  const el = document.getElementById('mp-prompt');
+  const v = el.value.trim();
+  el.value = v ? v + ' ' + text : text;
+  el.focus();
+}
+
+async function savePrompt() {
+  const vid = document.getElementById('mp-vid').value;
+  const prompt = document.getElementById('mp-prompt').value.trim();
+  try {
+    await api('PATCH', `/admin/voices/${vid}`, { style_prompt: prompt || null });
+    closeM('m-prompt');
+    toast('Instrução salva', 'ok');
+    loadVoices();
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

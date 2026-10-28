@@ -21,6 +21,7 @@ from kvoice.api.schemas import (
     TokenResponse,
     VoiceConsentResponse,
     VoiceCreate,
+    VoicePatch,
     VoiceResponse,
 )
 from kvoice.db.models import (
@@ -130,6 +131,24 @@ async def criar_voz(body: VoiceCreate, db: DbSession) -> Voice:
         style_prompt=body.style_prompt,
     )
     db.add(voice)
+    await db.commit()
+    await db.refresh(voice)
+    return voice
+
+
+@router.patch(
+    "/voices/{voice_id}",
+    response_model=VoiceResponse,
+    dependencies=[_admin],
+)
+async def atualizar_voz(voice_id: str, body: VoicePatch, db: DbSession) -> Voice:
+    voice = await db.get(Voice, voice_id)
+    if voice is None or not voice.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voz não encontrada")
+    if body.style_prompt is not None:
+        voice.style_prompt = body.style_prompt or None
+    if body.model_id is not None:
+        voice.model_id = body.model_id or None
     await db.commit()
     await db.refresh(voice)
     return voice
