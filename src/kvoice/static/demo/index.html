@@ -184,13 +184,18 @@
     .am-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim)}
     .am-val{font-size:13px;font-weight:700;font-family:'SF Mono','Fira Code',ui-monospace,monospace}
 
-    /* ── Spinner ── */
+    /* ── Spinner (upload) ── */
     @keyframes spin{to{transform:rotate(360deg)}}
     .spin{
       width:13px;height:13px;border:2px solid rgba(255,255,255,.25);
       border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;
       display:inline-block;flex-shrink:0;
     }
+    /* ── Anel de progresso SVG ── */
+    .prog-ring{width:18px;height:18px;flex-shrink:0;transform:rotate(-90deg)}
+    .prog-ring-bg{fill:none;stroke:rgba(255,255,255,.2);stroke-width:2.5}
+    .prog-ring-arc{fill:none;stroke:#fff;stroke-width:2.5;stroke-linecap:round;
+      stroke-dasharray:50.3;stroke-dashoffset:50.3;transition:stroke-dashoffset .4s linear}
 
     /* ── Slider ── */
     .slider-row{display:flex;align-items:center;gap:11px}
@@ -1053,10 +1058,18 @@ async function synthesize() {
   const btn = document.getElementById('s-btn');
   btn.disabled = true;
   const t0 = performance.now();
-  btn.innerHTML = '<span class="spin"></span> Sintetizando… 0:00';
+  // ~40 ms/char é estimativa conservadora para Qwen3 em GPU; limita em 95% até resposta
+  const _estMs = Math.max(2000, text.length * 40);
+  const _circ = 50.3; // 2π × r=8
+  function _progSvg(pct) {
+    const off = _circ * (1 - pct / 100);
+    return `<svg class="prog-ring" viewBox="0 0 20 20"><circle class="prog-ring-bg" cx="10" cy="10" r="8"/><circle class="prog-ring-arc" cx="10" cy="10" r="8" style="stroke-dashoffset:${off.toFixed(1)}"/></svg>`;
+  }
+  btn.innerHTML = `${_progSvg(0)} Sintetizando… 0%`;
   _synthTimerHandle = setInterval(() => {
-    btn.innerHTML = `<span class="spin"></span> Sintetizando… ${fmtElapsed(performance.now() - t0)}`;
-  }, 1000);
+    const pct = Math.min(95, Math.round((performance.now() - t0) / _estMs * 100));
+    btn.innerHTML = `${_progSvg(pct)} Sintetizando… ${pct}%`;
+  }, 200);
   startEngPoll();
   try {
     const reqBody = { text, voice_id: vid, format: _fmt, delivery: 'bytes' };
@@ -1090,6 +1103,9 @@ async function synthesize() {
   finally {
     if (_synthTimerHandle) { clearInterval(_synthTimerHandle); _synthTimerHandle = null; }
     stopEngPoll();
+    // Pisca 100% por 400ms antes de restaurar
+    btn.innerHTML = `${_progSvg(100)} Sintetizando… 100%`;
+    await new Promise(r => setTimeout(r, 400));
     btn.disabled = false;
     btn.innerHTML = '<span>🎙</span> Sintetizar';
   }
