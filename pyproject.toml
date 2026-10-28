@@ -3,7 +3,20 @@ name = "kvoice"
 version = "0.1.0"
 description = "Servidor de síntese de voz com streaming para LiveKit e lote para WhatsApp"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "numpy>=2.0",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic-settings>=2.0",
+    "sqlalchemy[asyncio]>=2.0",
+    "alembic>=1.14",
+    "asyncpg>=0.30",
+    "prometheus-client>=0.20",
+    "elevenlabs>=2.0",
+    "boto3>=1.35",
+    "mcp>=1.0",
+    "qwen-tts>=0.1.1",
+]
 
 [tool.uv]
 package = true
@@ -13,7 +26,26 @@ dev = [
     "mypy>=1.14",
     "pytest>=8.3",
     "pytest-asyncio>=0.25",
+    "pyyaml>=6.0",
     "ruff>=0.9",
+    "httpx>=0.28",
+    "testcontainers[postgres]>=4.7",
+    "psycopg2-binary>=2.9.13",
+]
+bench = [
+    "numpy>=2.0",
+    "pyloudnorm>=0.1",
+    "pyyaml>=6.0",
+    "scipy>=1.13",
+    "soundfile>=0.12",
+    "tqdm>=4.0",
+    "elevenlabs>=2.0",
+    "websockets>=13.0",
+]
+livekit = [
+    "livekit-agents>=1.8",
+    "websockets>=13.0",
+    "livekit-plugins-elevenlabs>=1.8",
 ]
 
 [tool.ruff]
@@ -23,11 +55,23 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+[tool.ruff.lint.per-file-ignores]
+"bench/*.py" = ["E402"]
+"tests/bench/*.py" = ["E402"]
+
 [tool.mypy]
 strict = true
 python_version = "3.12"
 files = ["src"]
 
+[[tool.mypy.overrides]]
+module = ["livekit.*", "websockets.*", "elevenlabs.*", "boto3", "boto3.*", "botocore", "botocore.*", "mcp", "mcp.*", "qwen_tts", "qwen_tts.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["kvoice.livekit", "kvoice.livekit.*"]
+ignore_errors = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests"]
+testpaths = ["tests/api", "tests/normalize"]

@@ -1,0 +1,203 @@
+casos:
+  # -----------------------------------------------------------------------
+  # Moeda
+  # -----------------------------------------------------------------------
+  - id: moeda_simples
+    entrada: "R$ 1.234,50"
+    esperado: "mil duzentos e trinta e quatro reais e cinquenta centavos"
+
+  - id: moeda_zero_centavos
+    entrada: "R$ 100,00"
+    esperado: "cem reais"
+
+  - id: moeda_so_centavos
+    entrada: "R$ 0,50"
+    esperado: "cinquenta centavos"
+
+  - id: moeda_um_real
+    entrada: "R$ 1,00"
+    esperado: "um real"
+
+  - id: moeda_um_centavo
+    entrada: "R$ 0,01"
+    esperado: "um centavo"
+
+  - id: moeda_milhao
+    entrada: "R$ 1.000.000,00"
+    esperado: "um milhão de reais"
+
+  - id: moeda_real_e_centavos
+    entrada: "R$ 1,50"
+    esperado: "um real e cinquenta centavos"
+
+  # -----------------------------------------------------------------------
+  # Números cardinais
+  # -----------------------------------------------------------------------
+  - id: cardinal_zero
+    entrada: "0 itens"
+    esperado: "zero itens"
+
+  - id: cardinal_simples
+    entrada: "42 anos"
+    esperado: "quarenta e dois anos"
+
+  - id: cardinal_mil
+    entrada: "1000 pessoas"
+    esperado: "mil pessoas"
+
+  - id: cardinal_cem
+    entrada: "100 dias"
+    esperado: "cem dias"
+
+  - id: cardinal_cento_e_um
+    entrada: "101 dias"
+    esperado: "cento e um dias"
+
+  - id: cardinal_mil_e_um
+    entrada: "1001 dias"
+    esperado: "mil e um dias"
+
+  - id: cardinal_mil_duzentos
+    entrada: "1200 metros"
+    esperado: "mil e duzentos metros"
+
+  - id: cardinal_mil_duzentos_e_trinta
+    entrada: "1234 metros"
+    esperado: "mil duzentos e trinta e quatro metros"
+
+  # -----------------------------------------------------------------------
+  # Ordinais
+  # -----------------------------------------------------------------------
+  - id: ordinal_masc
+    entrada: "chegou em 1º lugar"
+    esperado: "chegou em primeiro lugar"
+
+  - id: ordinal_fem
+    entrada: "é a 2ª vez"
+    esperado: "é a segunda vez"
+
+  - id: ordinal_decimo
+    entrada: "10º andar"
+    esperado: "décimo andar"
+
+  # -----------------------------------------------------------------------
+  # Datas
+  # -----------------------------------------------------------------------
+  - id: data_completa
+    entrada: "15/03/2025"
+    esperado: "quinze de março de dois mil e vinte e cinco"
+
+  - id: data_primeiro
+    entrada: "01/01/2024"
+    esperado: "um de janeiro de dois mil e vinte e quatro"
+
+  # -----------------------------------------------------------------------
+  # Horas
+  # -----------------------------------------------------------------------
+  - id: hora_exata
+    entrada: "às 14:00"
+    esperado: "às quatorze horas"
+
+  - id: hora_com_minutos
+    entrada: "às 9:30"
+    esperado: "às nove horas e trinta minutos"
+
+  - id: hora_uma
+    entrada: "à 1:00"
+    esperado: "à uma hora"
+
+  - id: hora_um_minuto
+    entrada: "às 10:01"
+    esperado: "às dez horas e um minuto"
+
+  # -----------------------------------------------------------------------
+  # Telefone
+  # -----------------------------------------------------------------------
+  - id: telefone_celular
+    entrada: "(11) 98765-4321"
+    esperado: "onze, nove oito sete seis cinco, quatro três dois um"
+
+  - id: telefone_fixo
+    entrada: "(21) 3456-7890"
+    esperado: "vinte e um, três quatro cinco seis, sete oito nove zero"
+
+  # -----------------------------------------------------------------------
+  # CPF
+  # -----------------------------------------------------------------------
+  - id: cpf_numero
+    entrada: "123.456.789-09"
+    esperado: "um dois três, quatro cinco seis, sete oito nove, zero nove"
+
+  - id: cpf_com_sigla
+    entrada: "CPF 123.456.789-09"
+    esperado: "cê pê efe um dois três, quatro cinco seis, sete oito nove, zero nove"
+
+  # -----------------------------------------------------------------------
+  # CNPJ
+  # -----------------------------------------------------------------------
+  - id: cnpj_numero
+    entrada: "12.345.678/0001-90"
+    esperado: "um dois, três quatro cinco, seis sete oito, zero zero zero um, nove zero"
+
+  # -----------------------------------------------------------------------
+  # CEP
+  # -----------------------------------------------------------------------
+  - id: cep_numero
+    entrada: "01310-100"
+    esperado: "zero um três um zero, um zero zero"
+
+  # -----------------------------------------------------------------------
+  # Siglas (acrônimos)
+  # -----------------------------------------------------------------------
+  - id: sigla_cpf_isolada
+    entrada: "seu CPF"
+    esperado: "seu cê pê efe"
+
+  - id: sigla_pix
+    entrada: "via PIX"
+    esperado: "via pê i xis"
+
+  - id: sigla_rg
+    entrada: "seu RG"
+    esperado: "seu erre gê"
+
+  - id: sigla_ted
+    entrada: "por TED"
+    esperado: "por tê ê dê"
+
+  # -----------------------------------------------------------------------
+  # Temperatura
+  # -----------------------------------------------------------------------
+  - id: celsius_inteiro
+    entrada: "35°C"
+    esperado: "trinta e cinco graus Celsius"
+
+  # -----------------------------------------------------------------------
+  # Dicionário de pronúncia
+  # -----------------------------------------------------------------------
+  - id: dict_nome_proprio
+    entrada: "fale com a Klubi"
+    dict:
+      Klubi: "Klúbi"
+    esperado: "fale com a Klúbi"
+
+  # -----------------------------------------------------------------------
+  # Modo incremental
+  # -----------------------------------------------------------------------
+  - id: incremental_sem_fronteira
+    entrada: "R$ 1.2"
+    incremental: true
+    pronto: ""
+    pendente: "R$ 1.2"
+
+  - id: incremental_com_fronteira
+    entrada: "Seu saldo é R$ 100,00. "
+    incremental: true
+    pronto: "Seu saldo é cem reais."
+    pendente: ""
+
+  - id: incremental_mantém_pendente
+    entrada: "Olá! Seu número é (11) 9"
+    incremental: true
+    pronto: "Olá!"
+    pendente: "Seu número é (11) 9"
