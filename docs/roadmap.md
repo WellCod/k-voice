@@ -54,7 +54,7 @@ Gate: nenhuma integração de lote chamando a ElevenLabs direto.
 
 ## Fase 4 — Vozes próprias
 
-- [ ] PR 18 — `feat(voices): consentimento registrado e clonagem a partir de referência`
+- [x] PR 18 — `feat(voices): consentimento registrado e clonagem a partir de referência`
 - [ ] PR 19 — `feat(train): preparo de dados e ajuste fino do modelo por voz`
 - [ ] PR 20 — `feat(voices): vozes dos locutores no catálogo`
 - [ ] Teste cego de novo, agora com as vozes próprias.

@@ -12,6 +12,10 @@ dist/
 *.mp3
 *.ogg
 *.opus
+*.webm
+*.m4a
+*.flac
+data/
 bench/outputs/
 bench/referencias/
 bench/teste_cego/dados.js
