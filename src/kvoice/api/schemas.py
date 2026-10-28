@@ -72,6 +72,11 @@ class VoiceCreate(BaseModel):
     style_prompt: str | None = None
 
 
+class VoicePatch(BaseModel):
+    style_prompt: str | None = None
+    model_id: str | None = None
+
+
 class VoiceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -83,6 +88,7 @@ class VoiceResponse(BaseModel):
     language: str
     origin: VoiceOrigin
     model_id: str | None
+    style_prompt: str | None
     is_active: bool
     created_at: datetime
 
