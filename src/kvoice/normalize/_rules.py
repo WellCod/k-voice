@@ -62,6 +62,15 @@ _ORD_F = [
     "décima",
 ]
 
+# Siglas pronunciadas como palavras completas em pt-BR, não soletradas
+_PALAVRAS_NATIVAS: dict[str, str] = {
+    "PIX": "pix",
+    "TV": "tevê",
+    "LED": "led",
+    "APP": "app",
+    "WIFI": "uai fai",
+}
+
 # Patterns (ordem importa: mais específico primeiro)
 _RE_CELSIUS = re.compile(r"\b(\d+(?:[.,]\d+)?)\s*°C\b")
 _RE_MOEDA = re.compile(r"R\$\s*(\d{1,3}(?:\.\d{3})*),(\d{2})")
@@ -71,6 +80,8 @@ _RE_CEP = re.compile(r"\b(\d{5})-(\d{3})\b")
 _RE_TELEFONE = re.compile(r"\((\d{2})\)\s*(\d{4,5})-(\d{4})")
 _RE_DATA = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{2,4})\b")
 _RE_HORA = re.compile(r"\b(\d{1,2}):(\d{2})\b")
+_RE_PORCENTAGEM = re.compile(r"\b(\d+)(?:,(\d+))?\s*%")
+_RE_DECIMAL = re.compile(r"\b(\d+),(\d{1,4})\b")
 _RE_ORDINAL = re.compile(r"\b(\d+)([ºª°])")
 _RE_ACRONIMO = re.compile(r"\b([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇ]{2,6})\b")
 _RE_CARDINAL = re.compile(r"\b\d+\b")
@@ -146,6 +157,20 @@ def _hora(m: re.Match[str]) -> str:
     return base + f" e {numero_para_palavras(mi)} minuto{'s' if mi != 1 else ''}"
 
 
+def _porcentagem(m: re.Match[str]) -> str:
+    inteiro = numero_para_palavras(int(m.group(1)))
+    if m.group(2):
+        dec = numero_para_palavras(int(m.group(2)))
+        return f"{inteiro} vírgula {dec} por cento"
+    return f"{inteiro} por cento"
+
+
+def _decimal(m: re.Match[str]) -> str:
+    inteiro = numero_para_palavras(int(m.group(1)))
+    dec = numero_para_palavras(int(m.group(2)))
+    return f"{inteiro} vírgula {dec}"
+
+
 def _ordinal(m: re.Match[str]) -> str:
     n = int(m.group(1))
     fem = m.group(2) == "ª"
@@ -175,7 +200,11 @@ def normalize(text: str, dict_: dict[str, str] | None = None) -> str:
     text = _RE_TELEFONE.sub(_telefone, text)
     text = _RE_DATA.sub(_data, text)
     text = _RE_HORA.sub(_hora, text)
+    text = _RE_PORCENTAGEM.sub(_porcentagem, text)
+    text = _RE_DECIMAL.sub(_decimal, text)
     text = _RE_ORDINAL.sub(_ordinal, text)
+    for sigla, forma in _PALAVRAS_NATIVAS.items():
+        text = re.sub(rf"\b{re.escape(sigla)}\b", forma, text)
     text = _RE_ACRONIMO.sub(_acronimo, text)
     text = _RE_CARDINAL.sub(_cardinal, text)
     return text

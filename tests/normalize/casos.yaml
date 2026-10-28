@@ -155,7 +155,15 @@ casos:
 
   - id: sigla_pix
     entrada: "via PIX"
-    esperado: "via pê i xis"
+    esperado: "via pix"
+
+  - id: sigla_tv
+    entrada: "na TV"
+    esperado: "na tevê"
+
+  - id: sigla_led
+    entrada: "luz LED"
+    esperado: "luz led"
 
   - id: sigla_rg
     entrada: "seu RG"
@@ -164,6 +172,32 @@ casos:
   - id: sigla_ted
     entrada: "por TED"
     esperado: "por tê ê dê"
+
+  # -----------------------------------------------------------------------
+  # Percentagens
+  # -----------------------------------------------------------------------
+  - id: pct_inteiro
+    entrada: "taxa de 12%"
+    esperado: "taxa de doze por cento"
+
+  - id: pct_decimal
+    entrada: "crescimento de 3,5%"
+    esperado: "crescimento de três vírgula cinco por cento"
+
+  - id: pct_cem
+    entrada: "100% aprovados"
+    esperado: "cem por cento aprovados"
+
+  # -----------------------------------------------------------------------
+  # Decimais
+  # -----------------------------------------------------------------------
+  - id: decimal_virgula
+    entrada: "3,14 de pi"
+    esperado: "três vírgula quatorze de pi"
+
+  - id: decimal_taxa
+    entrada: "taxa de 1,75 ao mês"
+    esperado: "taxa de um vírgula setenta e cinco ao mês"
 
   # -----------------------------------------------------------------------
   # Temperatura

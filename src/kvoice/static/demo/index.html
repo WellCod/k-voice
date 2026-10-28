@@ -184,13 +184,15 @@
     .am-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim)}
     .am-val{font-size:13px;font-weight:700;font-family:'SF Mono','Fira Code',ui-monospace,monospace}
 
-    /* ── Spinner ── */
+    /* ── Spinner (upload) ── */
     @keyframes spin{to{transform:rotate(360deg)}}
     .spin{
       width:13px;height:13px;border:2px solid rgba(255,255,255,.25);
       border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;
       display:inline-block;flex-shrink:0;
     }
+    /* ── Anel de progresso SVG ── */
+    .prog-ring{width:18px;height:18px;flex-shrink:0;transform:rotate(-90deg)}
 
     /* ── Slider ── */
     .slider-row{display:flex;align-items:center;gap:11px}
@@ -463,6 +465,9 @@
             <button class="btn btn-primary" id="s-btn" onclick="synthesize()" style="width:100%;justify-content:center">
               <span>🎙</span> Sintetizar
             </button>
+            <div id="srv-busy" style="display:none;margin-top:8px;font-size:12px;color:var(--yellow);text-align:center">
+              O servidor está processando uma síntese — aguarde ou recarregue quando terminar.
+            </div>
           </div>
 
           <div class="card" id="result-card" style="display:none">
@@ -841,12 +846,19 @@
       </div>
     </div>
     <div id="cv-panel-file" style="display:none">
+      <div style="background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.3);border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.5;color:var(--yellow)">
+        <strong>Dicas para melhor qualidade de clonagem</strong><br>
+        Grave em ambiente silencioso sem eco. Fale de forma natural e variada —
+        misture frases curtas e longas, vogais abertas e consoantes variadas.
+        <strong>Mínimo 5 s de fala limpa</strong> (silêncios são removidos automaticamente).
+        Formatos aceitos: WAV, MP3, OGG, WebM, M4A, FLAC.
+      </div>
       <div class="upload-area" onclick="document.getElementById('cv-file-in').click()"
            ondragover="event.preventDefault();this.classList.add('drag')"
            ondragleave="this.classList.remove('drag')"
            ondrop="handleRefDrop(event)">
         <div style="font-size:28px;margin-bottom:6px">📂</div>
-        <div class="sm">Clique ou arraste um arquivo WAV / MP3 / OGG</div>
+        <div class="sm">Clique ou arraste um arquivo de áudio</div>
         <input type="file" id="cv-file-in" accept="audio/*" onchange="handleRefFile(this)">
       </div>
     </div>
@@ -925,7 +937,18 @@ let _styleVal = '';
 let _styleCustom = '';
 let _synthTimerHandle = null;
 let _pollHandle = null;
+let _synthRecovering = false;
 try { _history = JSON.parse(localStorage.getItem('kv_hist') || '[]'); } catch {}
+
+// SVG de progresso reutilizável (atributos inline, independente de CSS)
+function progSvg(pct) {
+  const off = (50.3 * (1 - pct / 100)).toFixed(1);
+  return `<svg class="prog-ring" viewBox="0 0 20 20">` +
+    `<circle cx="10" cy="10" r="8" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="2.5"/>` +
+    `<circle cx="10" cy="10" r="8" fill="none" stroke="#fff" stroke-width="2.5" ` +
+    `stroke-linecap="round" stroke-dasharray="50.3" stroke-dashoffset="${off}"/>` +
+    `</svg>`;
+}
 
 const TITLES = {
   synthesize: 'Sintetizar', voices: 'Catálogo de vozes',
@@ -944,6 +967,34 @@ function init() {
   if (TITLES[hash]) nav(hash, false);
   setInterval(pollHealth, 30000);
   pollHealth();
+  _tryRecoverSynth();
+}
+
+function _tryRecoverSynth() {
+  try {
+    const raw = sessionStorage.getItem('kv_synth');
+    if (!raw) return;
+    const { startMs, estMs } = JSON.parse(raw);
+    if (Date.now() - startMs > 600_000) { sessionStorage.removeItem('kv_synth'); return; }
+    // Tinha síntese em andamento — restaura o estado do botão com progresso
+    _synthRecovering = true;
+    const btn = document.getElementById('s-btn');
+    btn.disabled = true;
+    document.getElementById('srv-busy').style.display = 'none';
+    let _recEstMs = estMs;
+    _synthTimerHandle = setInterval(() => {
+      const elapsed = Date.now() - startMs;
+      if (elapsed > _recEstMs * 0.85) {
+        _recEstMs = elapsed * 1.6;
+        sessionStorage.setItem('kv_synth', JSON.stringify({ startMs, estMs: _recEstMs }));
+      }
+      const pct = Math.min(99, Math.round(elapsed / _recEstMs * 100));
+      const restMs = Math.max(0, _recEstMs - elapsed);
+      const restLabel = restMs > 3000 ? ` · ~${fmtElapsed(restMs)} restantes` : '';
+      btn.innerHTML = `${progSvg(pct)} Sintetizando… ${pct}%${restLabel}`;
+    }, 500);
+    startEngPoll();
+  } catch { sessionStorage.removeItem('kv_synth'); }
 }
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
@@ -1046,10 +1097,28 @@ async function synthesize() {
   const btn = document.getElementById('s-btn');
   btn.disabled = true;
   const t0 = performance.now();
-  btn.innerHTML = '<span class="spin"></span> Sintetizando… 0:00';
+  // Estimativa inicial: clone carrega modelo Base (~3 min na 1ª vez), preset usa CustomVoice
+  const voice = _voices.find(v => v.id === vid);
+  const isClone = voice?.origin === 'clone';
+  let _curEstMs = isClone
+    ? Math.max(60_000, text.length * 300)   // clone: ~300ms/char, mínimo 1 min
+    : Math.max(4_000,  text.length * 60);   // preset: ~60ms/char, mínimo 4s
+  const _startMs = Date.now();
+  sessionStorage.setItem('kv_synth', JSON.stringify({ startMs: _startMs, estMs: _curEstMs }));
+  document.getElementById('srv-busy').style.display = 'none';
+  btn.innerHTML = `${progSvg(0)} Sintetizando… 0%`;
   _synthTimerHandle = setInterval(() => {
-    btn.innerHTML = `<span class="spin"></span> Sintetizando… ${fmtElapsed(performance.now() - t0)}`;
-  }, 1000);
+    const elapsed = Date.now() - _startMs;
+    // Ao atingir 85% da estimativa atual, estende em 60% para manter o anel sempre em movimento
+    if (elapsed > _curEstMs * 0.85) {
+      _curEstMs = elapsed * 1.6;
+      sessionStorage.setItem('kv_synth', JSON.stringify({ startMs: _startMs, estMs: _curEstMs }));
+    }
+    const pct = Math.min(99, Math.round(elapsed / _curEstMs * 100));
+    const restMs = Math.max(0, _curEstMs - elapsed);
+    const restLabel = restMs > 3000 ? ` · ~${fmtElapsed(restMs)} restantes` : '';
+    btn.innerHTML = `${progSvg(pct)} Sintetizando… ${pct}%${restLabel}`;
+  }, 500);
   startEngPoll();
   try {
     const reqBody = { text, voice_id: vid, format: _fmt, delivery: 'bytes' };
@@ -1081,8 +1150,11 @@ async function synthesize() {
     toast('Áudio gerado!', 'ok');
   } catch (e) { toast('Erro: ' + e.message, 'err'); }
   finally {
+    sessionStorage.removeItem('kv_synth');
     if (_synthTimerHandle) { clearInterval(_synthTimerHandle); _synthTimerHandle = null; }
     stopEngPoll();
+    btn.innerHTML = `${progSvg(100)} Sintetizando… 100%`;
+    await new Promise(r => setTimeout(r, 400));
     btn.disabled = false;
     btn.innerHTML = '<span>🎙</span> Sintetizar';
   }
@@ -1209,14 +1281,29 @@ async function pollHealth() {
     const active = d.active || 0;
     const badge = document.getElementById('eng-badge');
     const txt = document.getElementById('eng-txt');
+    const srvBusy = document.getElementById('srv-busy');
+    const sBtn = document.getElementById('s-btn');
     if (active > 0) {
       badge.classList.add('visible');
       txt.textContent = `${active} síntese${active > 1 ? 's' : ''} ativa${active > 1 ? 's' : ''}`;
+      if (srvBusy && sBtn && !sBtn.disabled) srvBusy.style.display = '';
     } else {
       badge.classList.remove('visible');
+      if (srvBusy) srvBusy.style.display = 'none';
+      // síntese terminada no servidor — encerra modo de recuperação
+      if (_synthRecovering) {
+        _synthRecovering = false;
+        sessionStorage.removeItem('kv_synth');
+        if (_synthTimerHandle) { clearInterval(_synthTimerHandle); _synthTimerHandle = null; }
+        stopEngPoll();
+        if (sBtn) { sBtn.disabled = false; sBtn.innerHTML = '<span>🎙</span> Sintetizar'; }
+        toast('Síntese concluída — inicie uma nova', 'ok');
+      }
     }
   } catch {
     document.getElementById('eng-badge').classList.remove('visible');
+    const srvBusy = document.getElementById('srv-busy');
+    if (srvBusy) srvBusy.style.display = 'none';
   }
 }
 

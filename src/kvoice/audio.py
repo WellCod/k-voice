@@ -60,6 +60,50 @@ def _to_wav(pcm_data: bytes, sample_rate: int) -> bytes:
     return buf.getvalue()
 
 
+def preprocess_ref_audio(audio_bytes: bytes, ext: str) -> tuple[bytes, float]:
+    """Normaliza loudness, remove silêncio e converte áudio de referência para WAV 16 kHz mono.
+
+    Retorna (wav_bytes, duration_seconds).
+    Levanta RuntimeError se ffmpeg falhar.
+    """
+    _EXT_FMT: dict[str, list[str]] = {
+        "webm": ["-f", "webm"],
+        "m4a": ["-f", "mp4"],
+        "ogg": ["-f", "ogg"],
+    }
+    fmt_args = _EXT_FMT.get(ext, [])
+    af = (
+        "silenceremove=start_periods=1:start_silence=0.3:start_threshold=-50dB,"
+        "areverse,"
+        "silenceremove=start_periods=1:start_silence=0.3:start_threshold=-50dB,"
+        "areverse,"
+        "loudnorm=I=-16:TP=-1.5:LRA=11"
+    )
+    cmd = [
+        _ffmpeg_bin(),
+        "-y",
+        *fmt_args,
+        "-i",
+        "pipe:0",
+        "-af",
+        af,
+        "-ar",
+        "16000",
+        "-ac",
+        "1",
+        "-f",
+        "wav",
+        "pipe:1",
+    ]
+    result = subprocess.run(cmd, input=audio_bytes, capture_output=True, timeout=120)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg preprocess: {result.stderr.decode(errors='replace')[:400]}")
+    wav_bytes = result.stdout
+    with io.BytesIO(wav_bytes) as buf, wave.open(buf, "rb") as wf:
+        duration_s = wf.getnframes() / wf.getframerate()
+    return wav_bytes, duration_s
+
+
 def _ffmpeg(pcm_data: bytes, sample_rate: int, extra_args: list[str]) -> bytes:
     cmd = [
         _ffmpeg_bin(),

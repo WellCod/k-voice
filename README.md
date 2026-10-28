@@ -4,7 +4,7 @@ Servidor de síntese de voz (TTS) construído para substituir a ElevenLabs no ag
 
 ## Estado atual
 
-**Fases 0–3 concluídas. Fase 4 em andamento (PR 18 entregue).**
+**Fases 0–4 concluídas.**
 
 | Fase | Descrição | Status |
 |---|---|---|
@@ -12,7 +12,7 @@ Servidor de síntese de voz (TTS) construído para substituir a ElevenLabs no ag
 | 1 — Motor e streaming | Engine Qwen3-TTS, normalização pt-BR, API REST, WebSocket | ✅ |
 | 2 — LiveKit | Plugin TTS com streaming, cancelamento e fallback | ✅ |
 | 3 — Lote, MCP, ElevenLabs | S3, servidor MCP, compat ElevenLabs, dicionário de pronúncia | ✅ |
-| 4 — Vozes próprias | Clonagem com consentimento, ajuste fino | 🔄 PR 18 entregue |
+| 4 — Vozes próprias | Clonagem com consentimento, qualidade de pronúncia, painel demo | ✅ |
 
 ## O que está funcionando
 
@@ -20,15 +20,17 @@ Servidor de síntese de voz (TTS) construído para substituir a ElevenLabs no ag
 |---|---|
 | **Streaming WebSocket** | Texto incremental → PCM 16-bit 24 kHz; TTFA < 200 ms (GPU); cancelamento < 50 ms |
 | **Síntese em lote** | POST → OGG/Opus gravado em S3, URL assinada com TTL configurável |
-| **Normalização pt-BR** | Moeda, datas, CPF/CNPJ, telefones, siglas, CEP — determinístico |
+| **Segmentação por sentença** | Textos longos divididos antes da síntese; PCM concatenado com 200 ms de silêncio — preserva prosódia |
+| **Normalização pt-BR** | Moeda, datas, CPF/CNPJ, telefones, siglas, CEP, percentagens, decimais, PIX/TV/LED como palavras |
 | **Catálogo de vozes** | Vozes preset (Qwen3 CustomVoice) e clonadas (Qwen3 Base) |
-| **Clonagem de voz** | Upload de áudio de referência + consentimento LGPD registrado em `voice_consent` |
+| **Clonagem de voz** | Upload → ffmpeg normaliza loudness e remove silêncio → WAV 16 kHz mono; mínimo 5 s de fala limpa; consentimento LGPD em `voice_consent` |
+| **Instrução de estilo por voz** | `PATCH /admin/voices/{id}` edita `style_prompt` sem recriar a voz; chips de entonação na síntese |
 | **Dicionário de pronúncia** | Por cliente ou global; termos literais e regex |
 | **Roteamento** | Por cliente: k-voice puro, fallback ElevenLabs ou proporção configurável |
 | **Compatibilidade ElevenLabs** | `POST /v1/text-to-speech/{voice_id}` — troca é só URL base e chave |
 | **Servidor MCP** | `synthesize`, `list_voices`, `get_voice` para agentes de IA |
 | **Plugin LiveKit** | Interface TTSEngine com streaming e fallback automático |
-| **Painel demo** | `GET /demo` — criar vozes, clonar com microfone ou arquivo, testar síntese |
+| **Painel demo** | `GET /demo` — criar vozes preset ou clone, testar síntese com anel de progresso adaptativo e recuperação de sessão |
 
 ## Rodando em modo CPU (desenvolvimento)
 
