@@ -68,6 +68,19 @@
     .tok-badge.ok{background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.25)}
     .tok-badge.no{background:rgba(248,81,73,.1);color:var(--red);border:1px solid rgba(248,81,73,.2)}
     .tok-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+    .eng-badge{
+      display:none;align-items:center;gap:6px;padding:3px 10px;
+      border-radius:20px;font-size:12px;font-weight:500;
+      background:rgba(163,113,247,.12);color:var(--primary);border:1px solid rgba(163,113,247,.25);
+    }
+    .eng-badge.visible{display:flex}
+    @keyframes engpulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .eng-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;animation:engpulse 1.2s ease-in-out infinite}
+    .clone-warn{
+      background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.2);
+      border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--yellow);
+      display:none;margin-bottom:14px;line-height:1.5;
+    }
     .content{flex:1;overflow-y:auto;padding:24px}
 
     /* ── Pages ── */
@@ -377,6 +390,9 @@
   <header class="topbar">
     <div class="page-title" id="pg-title">Sintetizar</div>
     <div class="topbar-right">
+      <div class="eng-badge" id="eng-badge">
+        <div class="eng-dot"></div><span id="eng-txt">processando</span>
+      </div>
       <div class="tok-badge no" id="tok-badge">
         <div class="tok-dot"></div><span id="tok-txt">Sem token</span>
       </div>
@@ -440,6 +456,9 @@
               <div id="style-clone-note" style="display:none" class="fhint mt8">
                 Esta é uma voz clonada — o estilo é definido pelo áudio de referência.
               </div>
+            </div>
+            <div class="clone-warn" id="clone-warn">
+              ⏳ <strong>Voz clonada:</strong> a primeira síntese pode demorar vários minutos enquanto o modelo de clonagem carrega na memória. As próximas serão mais rápidas.
             </div>
             <button class="btn btn-primary" id="s-btn" onclick="synthesize()" style="width:100%;justify-content:center">
               <span>🎙</span> Sintetizar
@@ -875,6 +894,8 @@ let _newTok = '';
 let _history = [];
 let _styleVal = '';
 let _styleCustom = '';
+let _synthTimerHandle = null;
+let _pollHandle = null;
 try { _history = JSON.parse(localStorage.getItem('kv_hist') || '[]'); } catch {}
 
 const TITLES = {
@@ -892,6 +913,8 @@ function init() {
   }
   const hash = location.hash.replace('#', '');
   if (TITLES[hash]) nav(hash, false);
+  setInterval(pollHealth, 5000);
+  pollHealth();
 }
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
@@ -993,8 +1016,12 @@ async function synthesize() {
   if (!vid) { toast('Selecione uma voz', 'err'); return; }
   const btn = document.getElementById('s-btn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span> Sintetizando…';
   const t0 = performance.now();
+  btn.innerHTML = '<span class="spin"></span> Sintetizando… 0:00';
+  _synthTimerHandle = setInterval(() => {
+    btn.innerHTML = `<span class="spin"></span> Sintetizando… ${fmtElapsed(performance.now() - t0)}`;
+  }, 1000);
+  startEngPoll();
   try {
     const reqBody = { text, voice_id: vid, format: _fmt, delivery: 'bytes' };
     const stylePrompt = getStyle();
@@ -1025,6 +1052,8 @@ async function synthesize() {
     toast('Áudio gerado!', 'ok');
   } catch (e) { toast('Erro: ' + e.message, 'err'); }
   finally {
+    if (_synthTimerHandle) { clearInterval(_synthTimerHandle); _synthTimerHandle = null; }
+    stopEngPoll();
     btn.disabled = false;
     btn.innerHTML = '<span>🎙</span> Sintetizar';
   }
@@ -1138,7 +1167,44 @@ function updateStyleVisibility() {
   document.getElementById('style-chips').style.display = isClone ? 'none' : '';
   document.getElementById('style-custom').style.display = 'none';
   document.getElementById('style-clone-note').style.display = isClone ? '' : 'none';
+  document.getElementById('clone-warn').style.display = isClone ? '' : 'none';
   if (isClone) { _styleVal = ''; _styleCustom = ''; }
+}
+
+// ─── Engine status polling ────────────────────────────────────────────────────
+async function pollHealth() {
+  try {
+    const r = await fetch('/health');
+    if (!r.ok) throw new Error();
+    const d = await r.json();
+    const active = d.active || 0;
+    const badge = document.getElementById('eng-badge');
+    const txt = document.getElementById('eng-txt');
+    if (active > 0) {
+      badge.classList.add('visible');
+      txt.textContent = `${active} síntese${active > 1 ? 's' : ''} ativa${active > 1 ? 's' : ''}`;
+    } else {
+      badge.classList.remove('visible');
+    }
+  } catch {
+    document.getElementById('eng-badge').classList.remove('visible');
+  }
+}
+
+function startEngPoll() {
+  pollHealth();
+  _pollHandle = setInterval(pollHealth, 4000);
+}
+
+function stopEngPoll() {
+  if (_pollHandle) { clearInterval(_pollHandle); _pollHandle = null; }
+  setTimeout(() => { pollHealth(); }, 500);
+}
+
+function fmtElapsed(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, '0')}`;
 }
 
 // ─── Clients ──────────────────────────────────────────────────────────────────
