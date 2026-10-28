@@ -403,7 +403,7 @@
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" class="fgrp">
               <div>
                 <label class="lbl">Voz</label>
-                <select id="s-voice"><option value="">— carregando —</option></select>
+                <select id="s-voice" onchange="updateStyleVisibility()"><option value="">— carregando —</option></select>
               </div>
               <div>
                 <label class="lbl">Formato</label>
@@ -422,7 +422,7 @@
                 <span class="sval" id="s-sval">1.0×</span>
               </div>
             </div>
-            <div class="fgrp">
+            <div class="fgrp" id="style-section">
               <label class="lbl">Estilo / Entonação</label>
               <div class="chip-grp" id="style-chips">
                 <span class="chip sel" onclick="selStyle('',this)">Neutro</span>
@@ -437,6 +437,9 @@
               </div>
               <input type="text" id="style-custom" placeholder="Instrução de estilo em texto livre…"
                 style="display:none;margin-top:8px" oninput="_styleCustom=this.value.trim()">
+              <div id="style-clone-note" style="display:none" class="fhint mt8">
+                Esta é uma voz clonada — o estilo é definido pelo áudio de referência.
+              </div>
             </div>
             <button class="btn btn-primary" id="s-btn" onclick="synthesize()" style="width:100%;justify-content:center">
               <span>🎙</span> Sintetizar
@@ -473,7 +476,8 @@
         <div class="sec-title">Catálogo de vozes</div>
         <div class="flex gap8">
           <button class="btn btn-secondary btn-sm" onclick="loadVoices()">↻ Recarregar</button>
-          <button class="btn btn-primary btn-sm" onclick="openNewVoiceM()">+ Nova voz</button>
+          <button class="btn btn-secondary btn-sm" onclick="openPresetM()">+ Voz preset</button>
+          <button class="btn btn-primary btn-sm" onclick="openCloneNewM()">🎤 Clonar voz</button>
         </div>
       </div>
       <div class="search-row">
@@ -704,23 +708,16 @@
   </div>
 </div>
 
-<!-- New voice -->
+<!-- Preset voice -->
 <div class="overlay" id="m-new-voice">
-  <div class="modal" style="width:500px">
+  <div class="modal" style="width:460px">
     <div class="modal-hd">
-      <div class="modal-title">Nova voz</div>
+      <div class="modal-title">Nova voz preset</div>
       <button class="btn btn-ghost btn-sm" onclick="closeM('m-new-voice')">✕</button>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div class="fgrp">
-        <label class="lbl">ID único <span style="color:var(--red)">*</span></label>
-        <input type="text" id="nv-id" placeholder="ex: weslley-pt-br">
-        <div class="fhint">Slug sem espaços</div>
-      </div>
-      <div class="fgrp">
-        <label class="lbl">Nome <span style="color:var(--red)">*</span></label>
-        <input type="text" id="nv-name" placeholder="Weslley">
-      </div>
+    <div class="fgrp">
+      <label class="lbl">Nome <span style="color:var(--red)">*</span></label>
+      <input type="text" id="nv-name" placeholder="Ex.: Weslley" oninput="autoId(this,'nv-id')">
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="fgrp">
@@ -732,44 +729,49 @@
         </select>
       </div>
       <div class="fgrp">
-        <label class="lbl">Gênero</label>
-        <select id="nv-gender">
-          <option value="">— não especificado —</option>
-          <option value="male">male</option>
-          <option value="female">female</option>
-          <option value="neutral">neutral</option>
+        <label class="lbl">Speaker</label>
+        <select id="nv-model">
+          <option value="">padrão do servidor</option>
+          <option value="vivian">vivian (F)</option>
+          <option value="serena">serena (F)</option>
+          <option value="sohee">sohee (F)</option>
+          <option value="ono_anna">ono_anna (F)</option>
+          <option value="aiden">aiden (M)</option>
+          <option value="dylan">dylan (M)</option>
+          <option value="eric">eric (M)</option>
+          <option value="ryan">ryan (M)</option>
+          <option value="uncle_fu">uncle_fu (M)</option>
         </select>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div class="fgrp">
-        <label class="lbl">Estilo</label>
-        <input type="text" id="nv-style" placeholder="ex: news, casual">
-      </div>
-      <div class="fgrp">
-        <label class="lbl">Faixa etária</label>
-        <input type="text" id="nv-age" placeholder="ex: adult">
-      </div>
-    </div>
     <div class="fgrp">
-      <label class="lbl">Speaker Qwen3 (CustomVoice)</label>
-      <select id="nv-model">
-        <option value="">— padrão do servidor —</option>
-        <option value="vivian">vivian</option>
-        <option value="aiden">aiden</option>
-        <option value="dylan">dylan</option>
-        <option value="eric">eric</option>
-        <option value="ryan">ryan</option>
-        <option value="serena">serena</option>
-        <option value="sohee">sohee</option>
-        <option value="uncle_fu">uncle_fu</option>
-        <option value="ono_anna">ono_anna</option>
-      </select>
+      <label class="lbl">Instrução de estilo <span class="xs muted">(opcional, em inglês)</span></label>
+      <input type="text" id="nv-style-prompt" placeholder="Ex.: Speak in a warm, friendly tone">
+      <div class="fhint">Define o comportamento padrão desta voz. Pode ser sobreposto por síntese.</div>
     </div>
-    <div class="fgrp">
-      <label class="lbl">Instrução de estilo (em inglês)</label>
-      <input type="text" id="nv-style-prompt" placeholder="ex: Speak in a warm, friendly tone">
-    </div>
+    <details style="margin-bottom:14px">
+      <summary class="xs muted" style="cursor:pointer;user-select:none">Metadados opcionais ▾</summary>
+      <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="fgrp" style="margin-bottom:0">
+          <label class="lbl">Gênero</label>
+          <select id="nv-gender">
+            <option value="">—</option>
+            <option value="male">male</option>
+            <option value="female">female</option>
+            <option value="neutral">neutral</option>
+          </select>
+        </div>
+        <div class="fgrp" style="margin-bottom:0">
+          <label class="lbl">Faixa etária</label>
+          <input type="text" id="nv-age" placeholder="ex: adult">
+        </div>
+      </div>
+      <div class="fgrp mt8" style="margin-bottom:0">
+        <label class="lbl">ID personalizado</label>
+        <input type="text" id="nv-id" placeholder="auto-gerado">
+        <div class="fhint">Slug único, sem espaços ou acentos.</div>
+      </div>
+    </details>
     <div class="modal-ft">
       <button class="btn btn-secondary" onclick="closeM('m-new-voice')">Cancelar</button>
       <button class="btn btn-primary" onclick="createVoice()">Criar</button>
@@ -781,11 +783,28 @@
 <div class="overlay" id="m-clone-voice">
   <div class="modal" style="width:520px">
     <div class="modal-hd">
-      <div class="modal-title">🎤 Clonar voz</div>
+      <div class="modal-title" id="cv-title">🎤 Clonar voz</div>
       <button class="btn btn-ghost btn-sm" onclick="closeCloneM()">✕</button>
     </div>
     <input type="hidden" id="cv-vid">
-    <div class="sm muted mb16">Grave ou envie um áudio de referência com <strong>10–60 s</strong> de voz clara, sem ruído. O áudio é tratado como dado biométrico (LGPD).</div>
+    <div id="cv-new-fields">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="fgrp">
+          <label class="lbl">Nome da voz <span style="color:var(--red)">*</span></label>
+          <input type="text" id="cv-vname" placeholder="Ex.: Weslley" oninput="autoId(this,'cv-auto-id')">
+        </div>
+        <div class="fgrp">
+          <label class="lbl">Idioma</label>
+          <select id="cv-lang">
+            <option value="pt-BR">pt-BR</option>
+            <option value="en-US">en-US</option>
+            <option value="es-ES">es-ES</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <input type="hidden" id="cv-auto-id">
+    <div class="sm muted mb12">Grave ou envie <strong>10–60 segundos</strong> de voz clara, sem ruído. O áudio é tratado como dado biométrico (LGPD).</div>
     <div class="tabs" style="margin-bottom:14px">
       <div class="tab active" id="cv-tab-rec" onclick="setCvTab('rec',this)">🎙 Gravar</div>
       <div class="tab" id="cv-tab-file" onclick="setCvTab('file',this)">📁 Arquivo</div>
@@ -821,11 +840,10 @@
         </div>
       </div>
     </div>
-    <div class="div"></div>
-    <div class="fgrp">
+    <div class="fgrp mt12">
       <label class="lbl">Transcrição do áudio <span style="color:var(--red)">*</span></label>
-      <textarea id="cv-ref-text" placeholder="Digite exatamente o que você falou no áudio de referência…" style="min-height:70px"></textarea>
-      <div class="fhint">Necessário para o modelo sincronizar a voz.</div>
+      <textarea id="cv-ref-text" placeholder="Digite exatamente o que foi falado no áudio de referência…" style="min-height:70px"></textarea>
+      <div class="fhint">Necessário para o modelo alinhar a voz ao texto.</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="fgrp" style="margin-bottom:0">
@@ -837,7 +855,7 @@
         <input type="email" id="cv-email" placeholder="voce@empresa.com">
       </div>
     </div>
-    <div class="fhint mt8">Ao enviar, você consente com o uso do seu áudio para clonagem de voz (LGPD art. 11).</div>
+    <div class="fhint mt8">Ao enviar, você consente com o uso do áudio para clonagem de voz (LGPD art. 11).</div>
     <div class="modal-ft">
       <button class="btn btn-secondary" onclick="closeCloneM()">Cancelar</button>
       <button class="btn btn-primary" id="cv-submit" onclick="submitClone()">Clonar voz</button>
@@ -1047,7 +1065,7 @@ function restoreHist(i) {
   if (!h) return;
   document.getElementById('s-text').value = h.text;
   updCtr(document.getElementById('s-text'));
-  if (h.vid) document.getElementById('s-voice').value = h.vid;
+  if (h.vid) { document.getElementById('s-voice').value = h.vid; updateStyleVisibility(); }
   if (h.url) {
     document.getElementById('r-audio').src = h.url;
     document.getElementById('result-card').style.display = '';
@@ -1062,6 +1080,7 @@ async function loadVoicesSel() {
     sel.innerHTML = _voices.length
       ? _voices.map(v => `<option value="${v.id}">${esc(v.name)} (${v.language})</option>`).join('')
       : '<option value="">Nenhuma voz cadastrada</option>';
+    updateStyleVisibility();
   } catch { sel.innerHTML = '<option value="">Erro ao carregar vozes</option>'; }
 }
 
@@ -1096,7 +1115,7 @@ function renderVoices() {
         <span class="badge ${v.origin === 'preset' ? 'bg' : v.origin === 'clone' ? 'bp' : 'bb'}">${v.origin}</span>
       </div>
       <div class="vc-foot" style="gap:6px">
-        <button class="btn btn-ghost btn-sm" onclick="openCloneM('${v.id}')">🎤 Clonar</button>
+        ${v.origin === 'clone' ? `<button class="btn btn-ghost btn-sm" onclick="openCloneUpdateM('${v.id}','${esc(v.name)}')">🔄 Ref.</button>` : ''}
         <button class="btn btn-secondary btn-sm" onclick="testVoice('${v.id}')">▶ Testar</button>
       </div>
     </div>
@@ -1107,8 +1126,19 @@ function filterVoices() { renderVoices(); }
 
 function testVoice(vid) {
   document.getElementById('s-voice').value = vid;
+  updateStyleVisibility();
   nav('synthesize');
   toast('Voz selecionada', 'info');
+}
+
+function updateStyleVisibility() {
+  const vid = document.getElementById('s-voice').value;
+  const voice = _voices.find(v => v.id === vid);
+  const isClone = voice?.origin === 'clone';
+  document.getElementById('style-chips').style.display = isClone ? 'none' : '';
+  document.getElementById('style-custom').style.display = 'none';
+  document.getElementById('style-clone-note').style.display = isClone ? '' : 'none';
+  if (isClone) { _styleVal = ''; _styleCustom = ''; }
 }
 
 // ─── Clients ──────────────────────────────────────────────────────────────────
@@ -1354,10 +1384,20 @@ function toast(msg, type = 'info') {
   setTimeout(() => el.remove(), 4200);
 }
 
-// ─── New Voice ────────────────────────────────────────────────────────────────
-function openNewVoiceM() {
-  ['nv-id','nv-name','nv-style','nv-age','nv-style-prompt'].forEach(id => {
-    document.getElementById(id).value = '';
+// ─── New Preset Voice ─────────────────────────────────────────────────────────
+function autoId(nameEl, targetId) {
+  const target = document.getElementById(targetId);
+  if (target && !target.dataset.manual) {
+    target.value = nameEl.value.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+}
+
+function openPresetM() {
+  ['nv-name','nv-id','nv-style-prompt','nv-age'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; delete el.dataset.manual; }
   });
   document.getElementById('nv-lang').value = 'pt-BR';
   document.getElementById('nv-gender').value = '';
@@ -1366,14 +1406,13 @@ function openNewVoiceM() {
 }
 
 async function createVoice() {
-  const id = document.getElementById('nv-id').value.trim();
   const name = document.getElementById('nv-name').value.trim();
-  if (!id || !name) { toast('ID e nome são obrigatórios', 'err'); return; }
+  const id = document.getElementById('nv-id').value.trim() || slugify(name);
+  if (!name) { toast('Nome é obrigatório', 'err'); return; }
   const body = {
     id, name,
     language: document.getElementById('nv-lang').value,
     gender: document.getElementById('nv-gender').value || null,
-    style: document.getElementById('nv-style').value.trim() || null,
     age_range: document.getElementById('nv-age').value.trim() || null,
     model_id: document.getElementById('nv-model').value || null,
     style_prompt: document.getElementById('nv-style-prompt').value.trim() || null,
@@ -1383,9 +1422,13 @@ async function createVoice() {
     await api('POST', '/admin/voices', body);
     closeM('m-new-voice');
     toast(`Voz "${name}" criada`, 'ok');
-    loadVoices();
-    loadVoicesSel();
+    loadVoices(); loadVoicesSel();
   } catch (e) { toast('Erro: ' + e.message, 'err'); }
+}
+
+function slugify(s) {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
 // ─── Clone Voice ──────────────────────────────────────────────────────────────
@@ -1394,9 +1437,31 @@ let _recChunks = [];
 let _refBlob = null;
 let _refExt = 'webm';
 
-function openCloneM(vid) {
+function openCloneNewM() {
+  document.getElementById('cv-vid').value = '';
+  document.getElementById('cv-auto-id').value = '';
+  const vname = document.getElementById('cv-vname');
+  vname.value = ''; delete vname.dataset.manual;
+  document.getElementById('cv-lang').value = 'pt-BR';
+  document.getElementById('cv-ref-text').value = '';
+  document.getElementById('cv-name').value = '';
+  document.getElementById('cv-email').value = '';
+  document.getElementById('cv-title').textContent = '🎤 Clonar voz';
+  document.getElementById('cv-new-fields').style.display = '';
+  document.getElementById('cv-submit').textContent = 'Clonar voz';
+  clearRef();
+  setCvTab('rec', document.getElementById('cv-tab-rec'));
+  openM('m-clone-voice');
+}
+
+function openCloneUpdateM(vid, vname) {
   document.getElementById('cv-vid').value = vid;
   document.getElementById('cv-ref-text').value = '';
+  document.getElementById('cv-name').value = '';
+  document.getElementById('cv-email').value = '';
+  document.getElementById('cv-title').textContent = `🔄 Atualizar referência — ${vname}`;
+  document.getElementById('cv-new-fields').style.display = 'none';
+  document.getElementById('cv-submit').textContent = 'Atualizar referência';
   clearRef();
   setCvTab('rec', document.getElementById('cv-tab-rec'));
   openM('m-clone-voice');
@@ -1478,19 +1543,33 @@ function clearRef() {
 }
 
 async function submitClone() {
-  const vid = document.getElementById('cv-vid').value;
+  let vid = document.getElementById('cv-vid').value;
   const refText = document.getElementById('cv-ref-text').value.trim();
   const cName = document.getElementById('cv-name').value.trim();
   const cEmail = document.getElementById('cv-email').value.trim();
   if (!_refBlob) { toast('Grave ou envie um áudio de referência', 'err'); return; }
   if (!refText) { toast('Digite a transcrição do áudio', 'err'); return; }
   if (!cName || !cEmail) { toast('Preencha nome e e-mail para o consentimento', 'err'); return; }
-  if (!_tok) { toast('Configure um token de API', 'err'); return; }
 
   const btn = document.getElementById('cv-submit');
+  const originalLabel = btn.textContent;
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span> Enviando…';
   try {
+    // Cria a voz se for um clone novo
+    if (!vid) {
+      const vname = document.getElementById('cv-vname').value.trim();
+      if (!vname) { toast('Nome da voz é obrigatório', 'err'); return; }
+      const newId = document.getElementById('cv-auto-id').value || slugify(vname);
+      const created = await api('POST', '/admin/voices', {
+        id: newId, name: vname,
+        language: document.getElementById('cv-lang').value,
+        origin: 'clone',
+      });
+      if (!created) return;
+      vid = created.id;
+    }
+
     const fd = new FormData();
     fd.append('audio', _refBlob, 'referencia.' + _refExt);
     fd.append('ref_text', refText);
@@ -1507,13 +1586,12 @@ async function submitClone() {
     }
     closeCloneM();
     toast('Voz clonada com sucesso!', 'ok');
-    loadVoices();
-    loadVoicesSel();
+    loadVoices(); loadVoicesSel();
   } catch (e) {
     toast('Erro: ' + e.message, 'err');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = 'Clonar voz';
+    btn.textContent = originalLabel;
   }
 }
 
