@@ -134,6 +134,7 @@ async def synthesize(
     voice = Voice(
         id=decision.effective_voice_id,
         name=orm_voice.name,
+        language=orm_voice.language,
         style_prompt=orm_voice.style_prompt,
     )
     pron = await load_dict(client.id)

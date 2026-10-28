@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from kvoice.api.auth import hash_token
 from kvoice.db.models import ApiToken, Client, UsageEvent
@@ -37,6 +38,7 @@ async def _autenticar(
             ApiToken.is_active.is_(True),
             Client.is_active.is_(True),
         )
+        .options(selectinload(ApiToken.client))
     )
     record = result.scalar_one_or_none()
     if record is None:

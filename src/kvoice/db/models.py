@@ -92,6 +92,7 @@ class Voice(Base):
     )
     model_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     ref_audio_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    ref_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     style_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

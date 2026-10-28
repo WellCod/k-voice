@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+import pathlib
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
 
 from kvoice.api.auth import gerar_token, hash_token
@@ -18,10 +19,22 @@ from kvoice.api.schemas import (
     TokenCreate,
     TokenCreated,
     TokenResponse,
+    VoiceConsentResponse,
     VoiceCreate,
     VoiceResponse,
 )
-from kvoice.db.models import ApiToken, Client, PronunciationEntry, RoutingRule, Voice
+from kvoice.db.models import (
+    ApiToken,
+    Client,
+    PronunciationEntry,
+    RoutingRule,
+    Voice,
+    VoiceConsent,
+    VoiceOrigin,
+)
+
+# Diretório local para áudio de referência (dev; produção usa S3)
+_REFS_DIR = pathlib.Path(__file__).parent.parent.parent.parent.parent / "data" / "references"
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 _admin = Depends(_exigir_scope("admin"))
@@ -120,6 +133,58 @@ async def criar_voz(body: VoiceCreate, db: DbSession) -> Voice:
     await db.commit()
     await db.refresh(voice)
     return voice
+
+
+@router.post(
+    "/voices/{voice_id}/reference-audio",
+    response_model=VoiceConsentResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[_admin],
+)
+async def upload_audio_referencia(
+    voice_id: str,
+    audio: UploadFile,
+    db: DbSession,
+    consenter_name: str = Form(...),
+    consenter_email: str = Form(...),
+    ref_text: str = Form(...),
+) -> VoiceConsent:
+    """Faz upload do áudio de referência e registra consentimento (ADR-0007)."""
+    voice = await db.get(Voice, voice_id)
+    if voice is None or not voice.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voz não encontrada")
+
+    audio_bytes = await audio.read()
+    if len(audio_bytes) < 1000:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Áudio muito curto")
+
+    # Determina extensão real a partir do nome do arquivo enviado
+    original_name = audio.filename or "ref.webm"
+    ext = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else "webm"
+    if ext not in {"wav", "mp3", "ogg", "webm", "m4a", "flac"}:
+        ext = "webm"
+
+    # Salva localmente (produção: substituir por upload S3 em kvoice.storage)
+    _REFS_DIR.mkdir(parents=True, exist_ok=True)
+    file_key = f"{voice_id}/{uuid.uuid4()}.{ext}"
+    local_path = _REFS_DIR / file_key
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    local_path.write_bytes(audio_bytes)
+
+    voice.origin = VoiceOrigin.clone
+    voice.ref_audio_key = str(local_path)
+    voice.ref_text = ref_text
+
+    consent = VoiceConsent(
+        voice_id=voice_id,
+        consenter_name=consenter_name,
+        consenter_email=consenter_email,
+        audio_key=file_key,
+    )
+    db.add(consent)
+    await db.commit()
+    await db.refresh(consent)
+    return consent
 
 
 @router.put(

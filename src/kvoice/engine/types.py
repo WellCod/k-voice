@@ -9,6 +9,8 @@ from typing import Protocol, runtime_checkable
 class Voice:
     id: str
     name: str
+    language: str = "pt-BR"
+    model_id: str | None = None  # speaker/modelo específico do engine (ex: "serena" no Qwen3-TTS)
     ref_audio: str | None = None
     ref_text: str | None = None
     style_prompt: str | None = None

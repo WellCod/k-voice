@@ -20,9 +20,18 @@ class Settings(BaseSettings):
     secret_key: str = "troque-em-producao"
     log_level: str = "INFO"
 
+    qwen3_enabled: bool = False
+    qwen3_model_id: str = "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"
+    qwen3_base_model_id: str = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
+    qwen3_speaker: str = "vivian"
+
     @property
     def sync_database_url(self) -> str:
-        return self.database_url.replace("+asyncpg", "")
+        url = self.database_url.replace("+asyncpg", "+psycopg2")
+        # strip asyncpg-specific query params unsupported by psycopg2
+        if "?" in url:
+            url = url.split("?")[0]
+        return url
 
 
 @lru_cache

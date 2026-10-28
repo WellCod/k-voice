@@ -15,6 +15,7 @@ dependencies = [
     "elevenlabs>=2.0",
     "boto3>=1.35",
     "mcp>=1.0",
+    "qwen-tts>=0.1.1",
 ]
 
 [tool.uv]
@@ -29,6 +30,7 @@ dev = [
     "ruff>=0.9",
     "httpx>=0.28",
     "testcontainers[postgres]>=4.7",
+    "psycopg2-binary>=2.9.13",
 ]
 bench = [
     "numpy>=2.0",
@@ -63,7 +65,7 @@ python_version = "3.12"
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["livekit.*", "websockets.*", "elevenlabs.*", "boto3", "boto3.*", "botocore", "botocore.*", "mcp", "mcp.*"]
+module = ["livekit.*", "websockets.*", "elevenlabs.*", "boto3", "boto3.*", "botocore", "botocore.*", "mcp", "mcp.*", "qwen_tts", "qwen_tts.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

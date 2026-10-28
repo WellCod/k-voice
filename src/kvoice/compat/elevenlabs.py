@@ -117,6 +117,7 @@ async def text_to_speech(
     voice = Voice(
         id=decision.effective_voice_id,
         name=orm_voice.name,
+        language=orm_voice.language,
         style_prompt=orm_voice.style_prompt,
     )
     opts = SynthOptions(format=our_format, speed=speed)

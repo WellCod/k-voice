@@ -3,8 +3,26 @@
 from __future__ import annotations
 
 import io
+import shutil
 import subprocess
 import wave
+
+
+def _ffmpeg_bin() -> str:
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    # fallback para instalação via winget no Windows
+    import glob
+    import os
+
+    pattern = os.path.expandvars(
+        r"%LOCALAPPDATA%\Microsoft\WinGet\Packages\Gyan.FFmpeg*\**\ffmpeg.exe"
+    )
+    matches = glob.glob(pattern, recursive=True)
+    if matches:
+        return matches[0]
+    return "ffmpeg"
 
 _CONTENT_TYPES: dict[str, str] = {
     "ogg_opus": "audio/ogg; codecs=opus",
@@ -43,7 +61,7 @@ def _to_wav(pcm_data: bytes, sample_rate: int) -> bytes:
 
 def _ffmpeg(pcm_data: bytes, sample_rate: int, extra_args: list[str]) -> bytes:
     cmd = [
-        "ffmpeg",
+        _ffmpeg_bin(),
         "-y",
         "-f",
         "s16le",
