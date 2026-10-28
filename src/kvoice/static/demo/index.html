@@ -937,7 +937,18 @@ let _styleVal = '';
 let _styleCustom = '';
 let _synthTimerHandle = null;
 let _pollHandle = null;
+let _synthRecovering = false;
 try { _history = JSON.parse(localStorage.getItem('kv_hist') || '[]'); } catch {}
+
+// SVG de progresso reutilizável (atributos inline, independente de CSS)
+function progSvg(pct) {
+  const off = (50.3 * (1 - pct / 100)).toFixed(1);
+  return `<svg class="prog-ring" viewBox="0 0 20 20">` +
+    `<circle cx="10" cy="10" r="8" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="2.5"/>` +
+    `<circle cx="10" cy="10" r="8" fill="none" stroke="#fff" stroke-width="2.5" ` +
+    `stroke-linecap="round" stroke-dasharray="50.3" stroke-dashoffset="${off}"/>` +
+    `</svg>`;
+}
 
 const TITLES = {
   synthesize: 'Sintetizar', voices: 'Catálogo de vozes',
@@ -956,6 +967,26 @@ function init() {
   if (TITLES[hash]) nav(hash, false);
   setInterval(pollHealth, 30000);
   pollHealth();
+  _tryRecoverSynth();
+}
+
+function _tryRecoverSynth() {
+  try {
+    const raw = sessionStorage.getItem('kv_synth');
+    if (!raw) return;
+    const { startMs, estMs } = JSON.parse(raw);
+    if (Date.now() - startMs > 600_000) { sessionStorage.removeItem('kv_synth'); return; }
+    // Tinha síntese em andamento — restaura o estado do botão com progresso
+    _synthRecovering = true;
+    const btn = document.getElementById('s-btn');
+    btn.disabled = true;
+    document.getElementById('srv-busy').style.display = 'none';
+    _synthTimerHandle = setInterval(() => {
+      const pct = Math.min(95, Math.round((Date.now() - startMs) / estMs * 100));
+      btn.innerHTML = `${progSvg(pct)} Sintetizando… ${pct}%`;
+    }, 500);
+    startEngPoll();
+  } catch { sessionStorage.removeItem('kv_synth'); }
 }
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
@@ -1060,20 +1091,13 @@ async function synthesize() {
   const t0 = performance.now();
   // ~40 ms/char é estimativa conservadora para Qwen3 em GPU; limita em 95% até resposta
   const _estMs = Math.max(2000, text.length * 40);
-  // SVG com atributos inline para evitar dependência de CSS e rerender seguro
-  function _progSvg(pct) {
-    const off = (50.3 * (1 - pct / 100)).toFixed(1);
-    return `<svg class="prog-ring" viewBox="0 0 20 20">` +
-      `<circle cx="10" cy="10" r="8" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="2.5"/>` +
-      `<circle cx="10" cy="10" r="8" fill="none" stroke="#fff" stroke-width="2.5" ` +
-      `stroke-linecap="round" stroke-dasharray="50.3" stroke-dashoffset="${off}"/>` +
-      `</svg>`;
-  }
+  const _startMs = Date.now();
+  sessionStorage.setItem('kv_synth', JSON.stringify({ startMs: _startMs, estMs: _estMs }));
   document.getElementById('srv-busy').style.display = 'none';
-  btn.innerHTML = `${_progSvg(0)} Sintetizando… 0%`;
+  btn.innerHTML = `${progSvg(0)} Sintetizando… 0%`;
   _synthTimerHandle = setInterval(() => {
-    const pct = Math.min(95, Math.round((performance.now() - t0) / _estMs * 100));
-    btn.innerHTML = `${_progSvg(pct)} Sintetizando… ${pct}%`;
+    const pct = Math.min(95, Math.round((Date.now() - _startMs) / _estMs * 100));
+    btn.innerHTML = `${progSvg(pct)} Sintetizando… ${pct}%`;
   }, 200);
   startEngPoll();
   try {
@@ -1106,10 +1130,10 @@ async function synthesize() {
     toast('Áudio gerado!', 'ok');
   } catch (e) { toast('Erro: ' + e.message, 'err'); }
   finally {
+    sessionStorage.removeItem('kv_synth');
     if (_synthTimerHandle) { clearInterval(_synthTimerHandle); _synthTimerHandle = null; }
     stopEngPoll();
-    // Pisca 100% por 400ms antes de restaurar
-    btn.innerHTML = `${_progSvg(100)} Sintetizando… 100%`;
+    btn.innerHTML = `${progSvg(100)} Sintetizando… 100%`;
     await new Promise(r => setTimeout(r, 400));
     btn.disabled = false;
     btn.innerHTML = '<span>🎙</span> Sintetizar';
@@ -1242,11 +1266,19 @@ async function pollHealth() {
     if (active > 0) {
       badge.classList.add('visible');
       txt.textContent = `${active} síntese${active > 1 ? 's' : ''} ativa${active > 1 ? 's' : ''}`;
-      // mostra aviso apenas quando o botão está ocioso (não em síntese iniciada por esta aba)
       if (srvBusy && sBtn && !sBtn.disabled) srvBusy.style.display = '';
     } else {
       badge.classList.remove('visible');
       if (srvBusy) srvBusy.style.display = 'none';
+      // síntese terminada no servidor — encerra modo de recuperação
+      if (_synthRecovering) {
+        _synthRecovering = false;
+        sessionStorage.removeItem('kv_synth');
+        if (_synthTimerHandle) { clearInterval(_synthTimerHandle); _synthTimerHandle = null; }
+        stopEngPoll();
+        if (sBtn) { sBtn.disabled = false; sBtn.innerHTML = '<span>🎙</span> Sintetizar'; }
+        toast('Síntese concluída — inicie uma nova', 'ok');
+      }
     }
   } catch {
     document.getElementById('eng-badge').classList.remove('visible');
