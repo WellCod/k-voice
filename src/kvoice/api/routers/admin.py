@@ -24,6 +24,7 @@ from kvoice.api.schemas import (
     VoicePatch,
     VoiceResponse,
 )
+from kvoice.audio import preprocess_ref_audio
 from kvoice.db.models import (
     ApiToken,
     Client,
@@ -183,7 +184,23 @@ async def upload_audio_referencia(
     if ext not in {"wav", "mp3", "ogg", "webm", "m4a", "flac"}:
         ext = "webm"
 
-    # Salva localmente (produção: substituir por upload S3 em kvoice.storage)
+    # Normaliza loudness, remove silêncio e converte para WAV 16 kHz mono
+    try:
+        audio_bytes, duration_s = preprocess_ref_audio(audio_bytes, ext)
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Falha ao processar áudio: {exc}",
+        ) from exc
+
+    if duration_s < 5.0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Áudio de fala limpa muito curto ({duration_s:.1f}s). Mínimo: 5 segundos.",
+        )
+
+    # Salva localmente como WAV normalizado (produção: substituir por upload S3 em kvoice.storage)
+    ext = "wav"
     _REFS_DIR.mkdir(parents=True, exist_ok=True)
     file_key = f"{voice_id}/{uuid.uuid4()}.{ext}"
     local_path = _REFS_DIR / file_key

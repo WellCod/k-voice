@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import re
 import time
 import uuid
 from collections.abc import AsyncIterator
@@ -32,15 +33,36 @@ from kvoice.audio import pcm_duration_ms
 from kvoice.db.models import ApiToken, BatchJob, BatchStatus, Client
 from kvoice.db.models import Voice as DbVoice
 from kvoice.db.session import session_factory
-from kvoice.engine.types import SynthOptions, Voice
+from kvoice.engine.types import Audio, SynthOptions, Voice
 from kvoice.normalize import apply_dict, load_dict, normalize, normalize_incremental
 from kvoice.storage import get_storage
 
 router = APIRouter(tags=["tts"])
 
 _EXT: dict[str, str] = {"ogg_opus": "ogg", "mp3_44100": "mp3", "wav_24000": "wav"}
-
 _FLUSH = "\x00"
+_MAX_CHARS_SEGMENTO = 250
+_RE_FRASE = re.compile(r"(?<=[.!?])\s+")
+
+
+def _split_sentencas(text: str) -> list[str]:
+    """Divide texto longo em sentenças para preservar prosódia por segmento."""
+    if len(text) <= _MAX_CHARS_SEGMENTO:
+        return [text]
+    partes = _RE_FRASE.split(text.strip())
+    grupos: list[str] = []
+    atual = ""
+    for parte in partes:
+        if not atual:
+            atual = parte
+        elif len(atual) + 1 + len(parte) <= _MAX_CHARS_SEGMENTO:
+            atual += " " + parte
+        else:
+            grupos.append(atual)
+            atual = parte
+    if atual:
+        grupos.append(atual)
+    return grupos or [text]
 
 
 async def _autenticar_ws(token: str) -> tuple[Client, ApiToken] | None:
@@ -135,7 +157,25 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
     pron = await load_dict(client.id)
     normalized = normalize(apply_dict(body.text, pron))
 
-    audio = await decision.engine.synthesize(normalized, voice, opts)
+    sentencas = _split_sentencas(normalized)
+    if len(sentencas) == 1:
+        audio = await decision.engine.synthesize(sentencas[0], voice, opts)
+    else:
+        pcm_parts: list[bytes] = []
+        primeiro_ttfa = 0.0
+        for i, sent in enumerate(sentencas):
+            seg = await decision.engine.synthesize(sent, voice, opts)
+            if i == 0:
+                primeiro_ttfa = seg.ttfa_ms
+            pcm_parts.append(seg.data)
+        silence = b"\x00" * int(0.2 * decision.engine.sample_rate) * 2
+        combined = silence.join(pcm_parts)
+        audio = Audio(
+            data=combined,
+            sample_rate=decision.engine.sample_rate,
+            duration_ms=pcm_duration_ms(combined, decision.engine.sample_rate),
+            ttfa_ms=primeiro_ttfa,
+        )
 
     encoded, content_type = encode_audio(audio.data, audio.sample_rate, body.format)
     duration_ms = round(pcm_duration_ms(audio.data, audio.sample_rate), 1)
