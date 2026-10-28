@@ -981,22 +981,18 @@ function _tryRecoverSynth() {
     const btn = document.getElementById('s-btn');
     btn.disabled = true;
     document.getElementById('srv-busy').style.display = 'none';
+    let _recEstMs = estMs;
     _synthTimerHandle = setInterval(() => {
       const elapsed = Date.now() - startMs;
-      const pct = Math.round(elapsed / estMs * 100);
-      if (pct < 95) {
-        btn.innerHTML = `${progSvg(pct)} Sintetizando… ${pct}%`;
-      } else {
-        const bright = Math.floor(Date.now() / 600) % 2 === 0;
-        const stroke = bright ? '#fff' : 'rgba(255,255,255,.45)';
-        const ring = `<svg class="prog-ring" viewBox="0 0 20 20">` +
-          `<circle cx="10" cy="10" r="8" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="2.5"/>` +
-          `<circle cx="10" cy="10" r="8" fill="none" stroke="${stroke}" stroke-width="2.5" ` +
-          `stroke-linecap="round" stroke-dasharray="50.3" stroke-dashoffset="3"/>` +
-          `</svg>`;
-        btn.innerHTML = `${ring} Processando… ${fmtElapsed(elapsed)}`;
+      if (elapsed > _recEstMs * 0.85) {
+        _recEstMs = elapsed * 1.6;
+        sessionStorage.setItem('kv_synth', JSON.stringify({ startMs, estMs: _recEstMs }));
       }
-    }, 300);
+      const pct = Math.min(99, Math.round(elapsed / _recEstMs * 100));
+      const restMs = Math.max(0, _recEstMs - elapsed);
+      const restLabel = restMs > 3000 ? ` · ~${fmtElapsed(restMs)} restantes` : '';
+      btn.innerHTML = `${progSvg(pct)} Sintetizando… ${pct}%${restLabel}`;
+    }, 500);
     startEngPoll();
   } catch { sessionStorage.removeItem('kv_synth'); }
 }
@@ -1101,29 +1097,28 @@ async function synthesize() {
   const btn = document.getElementById('s-btn');
   btn.disabled = true;
   const t0 = performance.now();
-  // ~40 ms/char é estimativa conservadora para Qwen3 em GPU; limita em 95% até resposta
-  const _estMs = Math.max(2000, text.length * 40);
+  // Estimativa inicial: clone carrega modelo Base (~3 min na 1ª vez), preset usa CustomVoice
+  const voice = _voices.find(v => v.id === vid);
+  const isClone = voice?.origin === 'clone';
+  let _curEstMs = isClone
+    ? Math.max(60_000, text.length * 300)   // clone: ~300ms/char, mínimo 1 min
+    : Math.max(4_000,  text.length * 60);   // preset: ~60ms/char, mínimo 4s
   const _startMs = Date.now();
-  sessionStorage.setItem('kv_synth', JSON.stringify({ startMs: _startMs, estMs: _estMs }));
+  sessionStorage.setItem('kv_synth', JSON.stringify({ startMs: _startMs, estMs: _curEstMs }));
   document.getElementById('srv-busy').style.display = 'none';
   btn.innerHTML = `${progSvg(0)} Sintetizando… 0%`;
   _synthTimerHandle = setInterval(() => {
     const elapsed = Date.now() - _startMs;
-    const pct = Math.round(elapsed / _estMs * 100);
-    if (pct < 95) {
-      btn.innerHTML = `${progSvg(pct)} Sintetizando… ${pct}%`;
-    } else {
-      // estimativa esgotada — mostra anel pulsando + tempo decorrido
-      const bright = Math.floor(Date.now() / 600) % 2 === 0;
-      const stroke = bright ? '#fff' : 'rgba(255,255,255,.45)';
-      const ring = `<svg class="prog-ring" viewBox="0 0 20 20">` +
-        `<circle cx="10" cy="10" r="8" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="2.5"/>` +
-        `<circle cx="10" cy="10" r="8" fill="none" stroke="${stroke}" stroke-width="2.5" ` +
-        `stroke-linecap="round" stroke-dasharray="50.3" stroke-dashoffset="3"/>` +
-        `</svg>`;
-      btn.innerHTML = `${ring} Processando… ${fmtElapsed(elapsed)}`;
+    // Ao atingir 85% da estimativa atual, estende em 60% para manter o anel sempre em movimento
+    if (elapsed > _curEstMs * 0.85) {
+      _curEstMs = elapsed * 1.6;
+      sessionStorage.setItem('kv_synth', JSON.stringify({ startMs: _startMs, estMs: _curEstMs }));
     }
-  }, 300);
+    const pct = Math.min(99, Math.round(elapsed / _curEstMs * 100));
+    const restMs = Math.max(0, _curEstMs - elapsed);
+    const restLabel = restMs > 3000 ? ` · ~${fmtElapsed(restMs)} restantes` : '';
+    btn.innerHTML = `${progSvg(pct)} Sintetizando… ${pct}%${restLabel}`;
+  }, 500);
   startEngPoll();
   try {
     const reqBody = { text, voice_id: vid, format: _fmt, delivery: 'bytes' };
