@@ -74,8 +74,7 @@
       background:rgba(163,113,247,.12);color:var(--primary);border:1px solid rgba(163,113,247,.25);
     }
     .eng-badge.visible{display:flex}
-    @keyframes engpulse{0%,100%{opacity:1}50%{opacity:.4}}
-    .eng-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;animation:engpulse 1.2s ease-in-out infinite}
+    .eng-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
     .clone-warn{
       background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.2);
       border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--yellow);
@@ -913,7 +912,7 @@ function init() {
   }
   const hash = location.hash.replace('#', '');
   if (TITLES[hash]) nav(hash, false);
-  setInterval(pollHealth, 5000);
+  setInterval(pollHealth, 30000);
   pollHealth();
 }
 
