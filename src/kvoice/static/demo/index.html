@@ -982,9 +982,21 @@ function _tryRecoverSynth() {
     btn.disabled = true;
     document.getElementById('srv-busy').style.display = 'none';
     _synthTimerHandle = setInterval(() => {
-      const pct = Math.min(95, Math.round((Date.now() - startMs) / estMs * 100));
-      btn.innerHTML = `${progSvg(pct)} Sintetizando… ${pct}%`;
-    }, 500);
+      const elapsed = Date.now() - startMs;
+      const pct = Math.round(elapsed / estMs * 100);
+      if (pct < 95) {
+        btn.innerHTML = `${progSvg(pct)} Sintetizando… ${pct}%`;
+      } else {
+        const bright = Math.floor(Date.now() / 600) % 2 === 0;
+        const stroke = bright ? '#fff' : 'rgba(255,255,255,.45)';
+        const ring = `<svg class="prog-ring" viewBox="0 0 20 20">` +
+          `<circle cx="10" cy="10" r="8" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="2.5"/>` +
+          `<circle cx="10" cy="10" r="8" fill="none" stroke="${stroke}" stroke-width="2.5" ` +
+          `stroke-linecap="round" stroke-dasharray="50.3" stroke-dashoffset="3"/>` +
+          `</svg>`;
+        btn.innerHTML = `${ring} Processando… ${fmtElapsed(elapsed)}`;
+      }
+    }, 300);
     startEngPoll();
   } catch { sessionStorage.removeItem('kv_synth'); }
 }
@@ -1096,9 +1108,22 @@ async function synthesize() {
   document.getElementById('srv-busy').style.display = 'none';
   btn.innerHTML = `${progSvg(0)} Sintetizando… 0%`;
   _synthTimerHandle = setInterval(() => {
-    const pct = Math.min(95, Math.round((Date.now() - _startMs) / _estMs * 100));
-    btn.innerHTML = `${progSvg(pct)} Sintetizando… ${pct}%`;
-  }, 200);
+    const elapsed = Date.now() - _startMs;
+    const pct = Math.round(elapsed / _estMs * 100);
+    if (pct < 95) {
+      btn.innerHTML = `${progSvg(pct)} Sintetizando… ${pct}%`;
+    } else {
+      // estimativa esgotada — mostra anel pulsando + tempo decorrido
+      const bright = Math.floor(Date.now() / 600) % 2 === 0;
+      const stroke = bright ? '#fff' : 'rgba(255,255,255,.45)';
+      const ring = `<svg class="prog-ring" viewBox="0 0 20 20">` +
+        `<circle cx="10" cy="10" r="8" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="2.5"/>` +
+        `<circle cx="10" cy="10" r="8" fill="none" stroke="${stroke}" stroke-width="2.5" ` +
+        `stroke-linecap="round" stroke-dasharray="50.3" stroke-dashoffset="3"/>` +
+        `</svg>`;
+      btn.innerHTML = `${ring} Processando… ${fmtElapsed(elapsed)}`;
+    }
+  }, 300);
   startEngPoll();
   try {
     const reqBody = { text, voice_id: vid, format: _fmt, delivery: 'bytes' };
