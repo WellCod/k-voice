@@ -98,52 +98,146 @@ _ABREVIACOES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bEPP\b"), "empresa de pequeno porte"),
     (re.compile(r"\bMEI\b"), "microempreendedor individual"),
     (re.compile(r"\bME\b"), "microempresa"),
+    # Médico / saúde
+    (re.compile(r"\bmcg\b"), "microgramas"),
+    (re.compile(r"\bkcal\b", re.IGNORECASE), "quilocalorias"),
+    (re.compile(r"\bbpm\b", re.IGNORECASE), "batimentos por minuto"),
+    (re.compile(r"\bmmHg\b"), "milímetros de mercúrio"),
+    # Agrário / imóveis
+    (re.compile(r"\bha\b"), "hectares"),
     # Expressões comuns
     (re.compile(r"\bp\.\s*ex\.", re.IGNORECASE), "por exemplo"),
     (re.compile(r"\betc\.", re.IGNORECASE), "et cetera"),
     (re.compile(r"\bpágs?\.", re.IGNORECASE), "página"),
     (re.compile(r"\bvol\.", re.IGNORECASE), "volume"),
+    (re.compile(r"\bvs?\.", re.IGNORECASE), "versus"),
+    (re.compile(r"\bcf\.", re.IGNORECASE), "conforme"),
+    (re.compile(r"\bapud\b", re.IGNORECASE), "apude"),
     (re.compile(r"\bn[°º]\s*"), "número "),
 ]
 
-# Anglicismos com leitura pt-BR esperada
+# Anglicismos com leitura pt-BR esperada (mais específico/longo antes)
 _ANGLICISMOS: list[tuple[re.Pattern[str], str]] = [
+    # ── Plataformas e redes sociais ─────────────────────────────────────────────
     (re.compile(r"\bWhatsApp\b"), "uats ap"),
     (re.compile(r"\bYouTube\b"), "iúti iubi"),
     (re.compile(r"\bTikTok\b", re.IGNORECASE), "tique toque"),
     (re.compile(r"\bLinkedIn\b", re.IGNORECASE), "linquidin"),
+    (re.compile(r"\bInstagram\b", re.IGNORECASE), "instágrãm"),
+    (re.compile(r"\bFacebook\b", re.IGNORECASE), "feisbuque"),
+    (re.compile(r"\bTwitter\b", re.IGNORECASE), "tuíter"),
+    (re.compile(r"\bSpotify\b", re.IGNORECASE), "espotifái"),
     (re.compile(r"\bNetflix\b", re.IGNORECASE), "Nétiflix"),
+    (re.compile(r"\bAmazon\b", re.IGNORECASE), "âmazon"),
+    (re.compile(r"\bUber\b", re.IGNORECASE), "iúber"),
+    (re.compile(r"\biFood\b", re.IGNORECASE), "aifúde"),
+    (re.compile(r"\bRappi\b", re.IGNORECASE), "rápi"),
+    (re.compile(r"\bAirbnb\b", re.IGNORECASE), "êr bê êne bê"),
+    (re.compile(r"\bPayPal\b", re.IGNORECASE), "pêipol"),
+    # ── Dispositivos e marcas de tech ───────────────────────────────────────────
     (re.compile(r"\biPhone\b"), "aifone"),
     (re.compile(r"\biPad\b"), "aipade"),
+    (re.compile(r"\biMac\b"), "aimaque"),
+    (re.compile(r"\bAirPods\b", re.IGNORECASE), "êr pods"),
     (re.compile(r"\bBluetooth\b", re.IGNORECASE), "blutuf"),
+    (re.compile(r"\bsmartphone\b", re.IGNORECASE), "esmartefone"),
+    (re.compile(r"\btablet\b", re.IGNORECASE), "téblete"),
+    (re.compile(r"\bnotebook\b", re.IGNORECASE), "nótibuk"),
+    (re.compile(r"\bsmarttv\b", re.IGNORECASE), "esmart tê vê"),
+    (re.compile(r"\bsmart\s+tv\b", re.IGNORECASE), "esmart tê vê"),
+    (re.compile(r"\bpixel\b", re.IGNORECASE), "píxel"),
+    # ── Termos de software / desenvolvimento ────────────────────────────────────
+    (re.compile(r"\bsoftware\b", re.IGNORECASE), "sóftuer"),
+    (re.compile(r"\bhardware\b", re.IGNORECASE), "árduer"),
+    (re.compile(r"\bframework\b", re.IGNORECASE), "freimuórque"),
+    (re.compile(r"\bdashboard\b", re.IGNORECASE), "dáshborde"),
+    (re.compile(r"\bfirewall\b", re.IGNORECASE), "fáierual"),
+    (re.compile(r"\brouter\b", re.IGNORECASE), "rrúter"),
+    (re.compile(r"\bbenchmark\b", re.IGNORECASE), "bénchmárque"),
+    (re.compile(r"\bdeployment\b", re.IGNORECASE), "deplóimento"),
+    (re.compile(r"\bdeploy\b", re.IGNORECASE), "deplói"),
+    (re.compile(r"\bstackoverflow\b", re.IGNORECASE), "estac ovérflou"),
+    (re.compile(r"\bgithub\b", re.IGNORECASE), "guithabe"),
+    (re.compile(r"\bdebug\b", re.IGNORECASE), "dibague"),
+    (re.compile(r"\bbackend\b", re.IGNORECASE), "béquênde"),
+    (re.compile(r"\bfrontend\b", re.IGNORECASE), "frôntênde"),
+    (re.compile(r"\bwebsite\b", re.IGNORECASE), "uébsaite"),
+    (re.compile(r"\bwebhook\b", re.IGNORECASE), "uébugue"),
+    (re.compile(r"\btoken\b", re.IGNORECASE), "tóquen"),
+    (re.compile(r"\bcache\b", re.IGNORECASE), "cáche"),
+    (re.compile(r"\bcluster\b", re.IGNORECASE), "clúster"),
+    (re.compile(r"\bserver\b", re.IGNORECASE), "sérver"),
+    (re.compile(r"\bcheckout\b", re.IGNORECASE), "chécáute"),
+    (re.compile(r"\blogin\b", re.IGNORECASE), "lógin"),
+    (re.compile(r"\blogout\b", re.IGNORECASE), "logáute"),
+    (re.compile(r"\bupdate\b", re.IGNORECASE), "apidéite"),
+    (re.compile(r"\bupgrade\b", re.IGNORECASE), "apgréide"),
+    (re.compile(r"\bbackup\b", re.IGNORECASE), "béquiap"),
+    (re.compile(r"\bdownload\b", re.IGNORECASE), "daonloud"),
+    (re.compile(r"\bupload\b", re.IGNORECASE), "aploud"),
+    (re.compile(r"\bonline\b", re.IGNORECASE), "onlaine"),
+    (re.compile(r"\boffline\b", re.IGNORECASE), "oflaine"),
+    (re.compile(r"\bspam\b", re.IGNORECASE), "espam"),
+    # ── Metodologias ágeis ──────────────────────────────────────────────────────
+    (re.compile(r"\bsprint\b", re.IGNORECASE), "esprinte"),
+    (re.compile(r"\bscrum\b", re.IGNORECASE), "escrum"),
+    (re.compile(r"\bkanban\b", re.IGNORECASE), "canban"),
+    (re.compile(r"\bstandup\b", re.IGNORECASE), "estândup"),
+    (re.compile(r"\bstand-up\b", re.IGNORECASE), "estândup"),
+    # ── Negócios / finanças ─────────────────────────────────────────────────────
+    (re.compile(r"\bstartup\b", re.IGNORECASE), "estárt ap"),
+    (re.compile(r"\bcashback\b", re.IGNORECASE), "quéshbéque"),
+    (re.compile(r"\bvoucher\b", re.IGNORECASE), "vâucher"),
+    (re.compile(r"\bscore\b", re.IGNORECASE), "escôre"),
+    (re.compile(r"\bfintech\b", re.IGNORECASE), "fintéque"),
+    (re.compile(r"\binsight\b", re.IGNORECASE), "ínsaite"),
+    (re.compile(r"\bhighlight\b", re.IGNORECASE), "áilait"),
+    (re.compile(r"\bbriefing\b", re.IGNORECASE), "brífingue"),
+    (re.compile(r"\bmeeting\b", re.IGNORECASE), "mítingue"),
+    (re.compile(r"\bleasing\b", re.IGNORECASE), "lízingue"),
+    (re.compile(r"\bcoupon\b", re.IGNORECASE), "cupom"),
+    (re.compile(r"\bcupom\b", re.IGNORECASE), "cupom"),
+    (re.compile(r"\bprime\b", re.IGNORECASE), "praime"),
+    (re.compile(r"\bhype\b", re.IGNORECASE), "haipe"),
+    # ── Redes e conteúdo ────────────────────────────────────────────────────────
     (re.compile(r"\bpodcast\b", re.IGNORECASE), "pódqueste"),
     (re.compile(r"\bstreaming\b", re.IGNORECASE), "estrimingue"),
     (re.compile(r"\bselfie\b", re.IGNORECASE), "selfi"),
     (re.compile(r"\bhashtag\b", re.IGNORECASE), "áshtegue"),
-    (re.compile(r"\bdownload\b", re.IGNORECASE), "daonloud"),
-    (re.compile(r"\bupload\b", re.IGNORECASE), "aploud"),
-    (re.compile(r"\bbackup\b", re.IGNORECASE), "béquiap"),
-    (re.compile(r"\bonline\b", re.IGNORECASE), "onlaine"),
-    (re.compile(r"\boffline\b", re.IGNORECASE), "oflaine"),
-    (re.compile(r"\bfeedback\b", re.IGNORECASE), "fídbéque"),
-    (re.compile(r"\bwebsite\b", re.IGNORECASE), "uébsaite"),
-    (re.compile(r"\bsoftware\b", re.IGNORECASE), "sóftuer"),
-    (re.compile(r"\bhardware\b", re.IGNORECASE), "árduer"),
-    (re.compile(r"\bstartup\b", re.IGNORECASE), "estárt ap"),
-    (re.compile(r"\bcashback\b", re.IGNORECASE), "quéshbéque"),
-    (re.compile(r"\bvoucher\b", re.IGNORECASE), "vâucher"),
-    (re.compile(r"\bcheckout\b", re.IGNORECASE), "chécáute"),
-    (re.compile(r"\bscore\b", re.IGNORECASE), "escôre"),
     (re.compile(r"\bstories\b", re.IGNORECASE), "estóris"),
     (re.compile(r"\bstory\b", re.IGNORECASE), "estori"),
+    (re.compile(r"\breels\b", re.IGNORECASE), "riils"),
     (re.compile(r"\blive\b"), "laive"),
-    (re.compile(r"\bsmartphone\b", re.IGNORECASE), "esmartefone"),
-    (re.compile(r"\btablet\b", re.IGNORECASE), "téblete"),
-    (re.compile(r"\bnotebook\b", re.IGNORECASE), "nótibuk"),
-    # Palavras com pronúncia pt-BR não óbvia
+    (re.compile(r"\btrailer\b", re.IGNORECASE), "tréiler"),
+    (re.compile(r"\bteaser\b", re.IGNORECASE), "tízer"),
+    (re.compile(r"\bspoiler\b", re.IGNORECASE), "espóiler"),
+    (re.compile(r"\binfluencer\b", re.IGNORECASE), "influênser"),
+    (re.compile(r"\bcreator\b", re.IGNORECASE), "criêitor"),
+    (re.compile(r"\bfake\s+news\b", re.IGNORECASE), "feique niuze"),
+    (re.compile(r"\bfake\b", re.IGNORECASE), "feique"),
+    # ── Termos do cotidiano ─────────────────────────────────────────────────────
+    (re.compile(r"\bfeedback\b", re.IGNORECASE), "fídbéque"),
+    (re.compile(r"\bshopping\b", re.IGNORECASE), "xópin"),
+    (re.compile(r"\bdefault\b", re.IGNORECASE), "difôlte"),
+    (re.compile(r"\bstress\b", re.IGNORECASE), "estresse"),
+    (re.compile(r"\bworkout\b", re.IGNORECASE), "uórquaute"),
+    (re.compile(r"\bcoach\b", re.IGNORECASE), "cóche"),
+    (re.compile(r"\bcooking\b", re.IGNORECASE), "cúquin"),
+    (re.compile(r"\bsurfing\b", re.IGNORECASE), "sérfin"),
+    (re.compile(r"\bsushi\b", re.IGNORECASE), "súchi"),
+    (re.compile(r"\bdiesel\b", re.IGNORECASE), "dízel"),
+    (re.compile(r"\blaser\b", re.IGNORECASE), "léizer"),
+    # ── Pronúncia não óbvia ─────────────────────────────────────────────────────
     (re.compile(r"\bpok[eé]bola\b", re.IGNORECASE), "poquébola"),
     (re.compile(r"\bPokémon\b", re.IGNORECASE), "Pokêmon"),
     (re.compile(r"\bPikachu\b", re.IGNORECASE), "Picachú"),
+    (re.compile(r"\bDisney\b", re.IGNORECASE), "Dízni"),
+    (re.compile(r"\bMarvel\b", re.IGNORECASE), "Márvel"),
+    (re.compile(r"\bNike\b", re.IGNORECASE), "Náiqui"),
+    (re.compile(r"\bAdidas\b", re.IGNORECASE), "Adídas"),
+    (re.compile(r"\bHyundai\b", re.IGNORECASE), "Rindai"),
+    (re.compile(r"\bXiaomi\b", re.IGNORECASE), "Chiaomi"),
+    (re.compile(r"\bHuawei\b", re.IGNORECASE), "Ruaréi"),
 ]
 
 
@@ -295,11 +389,69 @@ def _ordinal_para_palavras(n: int, fem: bool = False) -> str | None:
 
 # Siglas pronunciadas como palavras completas em pt-BR, não soletradas
 _PALAVRAS_NATIVAS: dict[str, str] = {
+    # ── Tecnologia ─────────────────────────────────────────────────────────────
     "PIX": "pix",
     "TV": "tevê",
     "LED": "led",
     "APP": "app",
     "WIFI": "uai fai",
+    "IA": "i á",
+    "AI": "a i",
+    "API": "a pê i",
+    "RAM": "rã",
+    "ROM": "rôm",
+    # ── Financeiro / bancário ───────────────────────────────────────────────────
+    "TED": "tê ê dê",
+    "DOC": "dê ó cê",
+    "IOF": "i ô efe",
+    "IOT": "i ô tê",
+    "CEF": "cê ê efe",
+    "CDI": "cê dê i",
+    "CDB": "cê dê bê",
+    "LCI": "ele cê i",
+    "LCA": "ele cê á",
+    "CRI": "cê erre i",
+    "CRA": "cê erre á",
+    "CDC": "cê dê cê",
+    "PGBL": "pê gê bê ele",
+    "VGBL": "vê gê bê ele",
+    "SELIC": "selic",
+    # ── Impostos / previdência ──────────────────────────────────────────────────
+    "INSS": "i ene esse esse",
+    "FGTS": "fê gê tê esse",
+    "IPVA": "i pê vê á",
+    "IPTU": "i pê tê u",
+    "IRPF": "i erre pê efe",
+    "IRPJ": "i erre pê jota",
+    "ISS": "i esse esse",
+    "ICMS": "i cê eme esse",
+    "IPI": "i pê i",
+    # ── Órgãos e instituições ───────────────────────────────────────────────────
+    "SUS": "esse u esse",
+    "OAB": "ô á bê",
+    "BNDES": "bê ene dê ê esse",
+    "IBGE": "i bê gê ê",
+    "AGU": "á gê u",
+    "TCU": "tê cê u",
+    "CGU": "cê gê u",
+    "TSE": "tê esse ê",
+    "TST": "tê esse tê",
+    "STF": "esse tê efe",
+    "STJ": "esse tê jota",
+    "ONU": "ô ene u",
+    "OMS": "ô eme esse",
+    # ── Mídia / comunicação ─────────────────────────────────────────────────────
+    "BBC": "bê bê cê",
+    "CNN": "cê ene ene",
+    "HBO": "agá bê ô",
+    "ESPN": "i esse pê ene",
+    "MTV": "eme tê vê",
+    # ── Outros ─────────────────────────────────────────────────────────────────
+    "CEP": "cê ê pê",
+    "CPF": "cê pê efe",
+    "RG": "erre gê",
+    "CNH": "cê ene agá",
+    "CNPJ": "cê ene pê jota",
 }
 
 # ---------------------------------------------------------------------------
@@ -320,7 +472,7 @@ _RE_HORA = re.compile(r"\b(\d{1,2}):(\d{2})\b")
 _RE_PORCENTAGEM = re.compile(r"\b(\d+)(?:,(\d+))?\s*%")
 _RE_DECIMAL = re.compile(r"\b(\d+),(\d{1,4})\b")
 _RE_ORDINAL = re.compile(r"\b(\d+)([ºª°])")
-_RE_ACRONIMO = re.compile(r"\b([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇ]{2,6})\b")
+_RE_ACRONIMO = re.compile(r"\b([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇ]{2,20})\b")
 _RE_CARDINAL = re.compile(r"\b\d+\b")
 _RE_SAFE = re.compile(r"(?<=[.!?])\s+")
 
@@ -446,8 +598,19 @@ def _ordinal(m: re.Match[str]) -> str:
     return numero_para_palavras(n)
 
 
+_VOGAIS_UPPER = frozenset("AEIOUÁÉÍÓÚÂÊÎÔÛÃÕ")
+
+
 def _acronimo(m: re.Match[str]) -> str:
-    return " ".join(_LETRAS.get(c, c) for c in m.group(0))
+    palavra = m.group(0)
+    vogais = sum(1 for c in palavra if c in _VOGAIS_UPPER)
+    n = len(palavra)
+    # Palavra em maiúscula com vogais → ênfase tipográfica, não sigla → caixa baixa.
+    # Siglas verdadeiras têm 0 vogais (CPF, RG) ou exatamente 1 vogal em ≤ 3 letras (TED).
+    # Casos com 1 vogal em ≤ 3 letras conhecidos (TED, DOC, etc.) já estão em _PALAVRAS_NATIVAS.
+    if vogais >= 2 or (vogais == 1 and n >= 4):
+        return palavra.lower()
+    return " ".join(_LETRAS.get(c, c) for c in palavra)
 
 
 def _cardinal(m: re.Match[str]) -> str:
