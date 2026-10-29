@@ -238,6 +238,32 @@ _ANGLICISMOS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bHyundai\b", re.IGNORECASE), "Rindai"),
     (re.compile(r"\bXiaomi\b", re.IGNORECASE), "Chiaomi"),
     (re.compile(r"\bHuawei\b", re.IGNORECASE), "Ruaréi"),
+    # ── Palavras portuguesas com QU+vogal em que o U é pronunciado ──────────────
+    # Após a reforma ortográfica de 1990 o trema foi suprimido (tranqüila → tranquila)
+    # mas a pronúncia do U permanece; sem correção o modelo lê como /ki/ em vez de /kwi/.
+    (re.compile(r"\btranquilamente\b", re.IGNORECASE), "trancuilamente"),
+    (re.compile(r"\btranquilidade\b", re.IGNORECASE), "trancuilidade"),
+    (re.compile(r"\btranquilizar\b", re.IGNORECASE), "trancuilizar"),
+    (re.compile(r"\btranquilas\b", re.IGNORECASE), "trancuilas"),
+    (re.compile(r"\btranquilo\b", re.IGNORECASE), "trancuilo"),
+    (re.compile(r"\btranquila\b", re.IGNORECASE), "trancuila"),
+    (re.compile(r"\bfrequentemente\b", re.IGNORECASE), "frecuentemente"),
+    (re.compile(r"\bfrequentes\b", re.IGNORECASE), "frecuentes"),
+    (re.compile(r"\bfrequência\b", re.IGNORECASE), "frecuência"),
+    (re.compile(r"\bfrequente\b", re.IGNORECASE), "frecuente"),
+    (re.compile(r"\bconsequentemente\b", re.IGNORECASE), "consecuentemente"),
+    (re.compile(r"\bconsequências\b", re.IGNORECASE), "consecuências"),
+    (re.compile(r"\bconsequência\b", re.IGNORECASE), "consecuência"),
+    (re.compile(r"\bconsequentes\b", re.IGNORECASE), "consecuentes"),
+    (re.compile(r"\bconsequente\b", re.IGNORECASE), "consecuente"),
+    (re.compile(r"\bsubsequentes\b", re.IGNORECASE), "subsecuentes"),
+    (re.compile(r"\bsubsequente\b", re.IGNORECASE), "subsecuente"),
+    (re.compile(r"\badequadamente\b", re.IGNORECASE), "adecuadamente"),
+    (re.compile(r"\binadequados\b", re.IGNORECASE), "inadecuados"),
+    (re.compile(r"\binadequado\b", re.IGNORECASE), "inadecuado"),
+    (re.compile(r"\badequados\b", re.IGNORECASE), "adecuados"),
+    (re.compile(r"\badequada\b", re.IGNORECASE), "adecuada"),
+    (re.compile(r"\badequado\b", re.IGNORECASE), "adecuado"),
 ]
 
 
@@ -446,7 +472,17 @@ _PALAVRAS_NATIVAS: dict[str, str] = {
     "HBO": "agá bê ô",
     "ESPN": "i esse pê ene",
     "MTV": "eme tê vê",
-    # ── Outros ─────────────────────────────────────────────────────────────────
+    # ── Esportes ────────────────────────────────────────────────────────────────
+    "UFC": "u efe cê",
+    "NBA": "ene bê á",
+    "NFL": "ene efe ele",
+    "MLB": "eme ele bê",
+    "NHL": "ene agá ele",
+    # ── Universidades ───────────────────────────────────────────────────────────
+    "USP": "u esse pê",
+    "UNB": "u ene bê",
+    "IME": "i eme ê",
+    # ── Documentos ──────────────────────────────────────────────────────────────
     "CEP": "cê ê pê",
     "CPF": "cê pê efe",
     "RG": "erre gê",
@@ -603,12 +639,11 @@ _VOGAIS_UPPER = frozenset("AEIOUÁÉÍÓÚÂÊÎÔÛÃÕ")
 
 def _acronimo(m: re.Match[str]) -> str:
     palavra = m.group(0)
-    vogais = sum(1 for c in palavra if c in _VOGAIS_UPPER)
-    n = len(palavra)
-    # Palavra em maiúscula com vogais → ênfase tipográfica, não sigla → caixa baixa.
-    # Siglas verdadeiras têm 0 vogais (CPF, RG) ou exatamente 1 vogal em ≤ 3 letras (TED).
-    # Casos com 1 vogal em ≤ 3 letras conhecidos (TED, DOC, etc.) já estão em _PALAVRAS_NATIVAS.
-    if vogais >= 2 or (vogais == 1 and n >= 4):
+    # Qualquer vogal → palavra em caixa alta (ênfase), não sigla → minúscula.
+    # Siglas com vogal que devem ser soletradas (TED, SUS, CDI…) já foram tratadas
+    # por _PALAVRAS_NATIVAS antes desta etapa.
+    # Siglas sem vogal (CPF, RG, STF, FGTS…) → soletra letra a letra.
+    if any(c in _VOGAIS_UPPER for c in palavra):
         return palavra.lower()
     return " ".join(_LETRAS.get(c, c) for c in palavra)
 
