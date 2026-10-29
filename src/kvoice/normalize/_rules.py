@@ -300,6 +300,14 @@ _PALAVRAS_NATIVAS: dict[str, str] = {
     "LED": "led",
     "APP": "app",
     "WIFI": "uai fai",
+    # Siglas financeiras de 3 letras com vogal (sem este registro seriam confundidas com palavras)
+    "TED": "tê ê dê",
+    "DOC": "dê ó cê",
+    "IOF": "i ô efe",
+    "IOT": "i ô tê",
+    "SUS": "esse u esse",
+    "CEF": "cê ê efe",
+    "OAB": "ô á bê",
 }
 
 # ---------------------------------------------------------------------------
@@ -320,7 +328,7 @@ _RE_HORA = re.compile(r"\b(\d{1,2}):(\d{2})\b")
 _RE_PORCENTAGEM = re.compile(r"\b(\d+)(?:,(\d+))?\s*%")
 _RE_DECIMAL = re.compile(r"\b(\d+),(\d{1,4})\b")
 _RE_ORDINAL = re.compile(r"\b(\d+)([ºª°])")
-_RE_ACRONIMO = re.compile(r"\b([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇ]{2,6})\b")
+_RE_ACRONIMO = re.compile(r"\b([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇ]{2,20})\b")
 _RE_CARDINAL = re.compile(r"\b\d+\b")
 _RE_SAFE = re.compile(r"(?<=[.!?])\s+")
 
@@ -446,8 +454,19 @@ def _ordinal(m: re.Match[str]) -> str:
     return numero_para_palavras(n)
 
 
+_VOGAIS_UPPER = frozenset("AEIOUÁÉÍÓÚÂÊÎÔÛÃÕ")
+
+
 def _acronimo(m: re.Match[str]) -> str:
-    return " ".join(_LETRAS.get(c, c) for c in m.group(0))
+    palavra = m.group(0)
+    vogais = sum(1 for c in palavra if c in _VOGAIS_UPPER)
+    n = len(palavra)
+    # Palavra em maiúscula com vogais → ênfase tipográfica, não sigla → caixa baixa.
+    # Siglas verdadeiras têm 0 vogais (CPF, RG) ou exatamente 1 vogal em ≤ 3 letras (TED).
+    # Casos com 1 vogal em ≤ 3 letras conhecidos (TED, DOC, etc.) já estão em _PALAVRAS_NATIVAS.
+    if vogais >= 2 or (vogais == 1 and n >= 4):
+        return palavra.lower()
+    return " ".join(_LETRAS.get(c, c) for c in palavra)
 
 
 def _cardinal(m: re.Match[str]) -> str:
