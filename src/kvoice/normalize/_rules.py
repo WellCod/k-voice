@@ -238,6 +238,32 @@ _ANGLICISMOS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bHyundai\b", re.IGNORECASE), "Rindai"),
     (re.compile(r"\bXiaomi\b", re.IGNORECASE), "Chiaomi"),
     (re.compile(r"\bHuawei\b", re.IGNORECASE), "Ruaréi"),
+    # ── Palavras portuguesas com QU+vogal em que o U é pronunciado ──────────────
+    # Após a reforma ortográfica de 1990 o trema foi suprimido (tranqüila → tranquila)
+    # mas a pronúncia do U permanece; sem correção o modelo lê como /ki/ em vez de /kwi/.
+    (re.compile(r"\btranquilamente\b", re.IGNORECASE), "trancuilamente"),
+    (re.compile(r"\btranquilidade\b", re.IGNORECASE), "trancuilidade"),
+    (re.compile(r"\btranquilizar\b", re.IGNORECASE), "trancuilizar"),
+    (re.compile(r"\btranquilas\b", re.IGNORECASE), "trancuilas"),
+    (re.compile(r"\btranquilo\b", re.IGNORECASE), "trancuilo"),
+    (re.compile(r"\btranquila\b", re.IGNORECASE), "trancuila"),
+    (re.compile(r"\bfrequentemente\b", re.IGNORECASE), "frecuentemente"),
+    (re.compile(r"\bfrequentes\b", re.IGNORECASE), "frecuentes"),
+    (re.compile(r"\bfrequência\b", re.IGNORECASE), "frecuência"),
+    (re.compile(r"\bfrequente\b", re.IGNORECASE), "frecuente"),
+    (re.compile(r"\bconsequentemente\b", re.IGNORECASE), "consecuentemente"),
+    (re.compile(r"\bconsequências\b", re.IGNORECASE), "consecuências"),
+    (re.compile(r"\bconsequência\b", re.IGNORECASE), "consecuência"),
+    (re.compile(r"\bconsequentes\b", re.IGNORECASE), "consecuentes"),
+    (re.compile(r"\bconsequente\b", re.IGNORECASE), "consecuente"),
+    (re.compile(r"\bsubsequentes\b", re.IGNORECASE), "subsecuentes"),
+    (re.compile(r"\bsubsequente\b", re.IGNORECASE), "subsecuente"),
+    (re.compile(r"\badequadamente\b", re.IGNORECASE), "adecuadamente"),
+    (re.compile(r"\binadequados\b", re.IGNORECASE), "inadecuados"),
+    (re.compile(r"\binadequado\b", re.IGNORECASE), "inadecuado"),
+    (re.compile(r"\badequados\b", re.IGNORECASE), "adecuados"),
+    (re.compile(r"\badequada\b", re.IGNORECASE), "adecuada"),
+    (re.compile(r"\badequado\b", re.IGNORECASE), "adecuado"),
 ]
 
 
