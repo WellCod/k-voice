@@ -456,7 +456,7 @@
               <input type="text" id="style-custom" placeholder="Instrução de estilo em texto livre…"
                 style="display:none;margin-top:8px" oninput="_styleCustom=this.value.trim()">
               <div id="style-clone-note" style="display:none" class="fhint mt8">
-                Esta é uma voz clonada — o estilo é definido pelo áudio de referência.
+                Voz clonada — o timbre vem do áudio de referência; o chip de estilo aplica instrução adicional.
               </div>
             </div>
             <div class="clone-warn" id="clone-warn">
@@ -1245,7 +1245,8 @@ function renderVoices() {
         <span class="badge ${v.origin === 'preset' ? 'bg' : v.origin === 'clone' ? 'bp' : 'bb'}">${v.origin}</span>
       </div>
       <div class="vc-foot" style="gap:6px">
-        ${v.origin === 'clone' ? `<button class="btn btn-ghost btn-sm" onclick="openCloneUpdateM('${v.id}','${esc(v.name)}')">🔄 Ref.</button>` : `<button class="btn btn-ghost btn-sm" onclick="openPromptM('${v.id}','${esc(v.name)}',${JSON.stringify(v.style_prompt||'')})">✏ Instrução</button>`}
+        ${v.origin === 'clone' ? `<button class="btn btn-ghost btn-sm" onclick="openCloneUpdateM('${v.id}','${esc(v.name)}')">🔄 Ref.</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="openPromptM('${v.id}','${esc(v.name)}',${JSON.stringify(v.style_prompt||'')})">✏ Instrução</button>
         <button class="btn btn-secondary btn-sm" onclick="testVoice('${v.id}')">▶ Testar</button>
       </div>
     </div>
@@ -1265,11 +1266,10 @@ function updateStyleVisibility() {
   const vid = document.getElementById('s-voice').value;
   const voice = _voices.find(v => v.id === vid);
   const isClone = voice?.origin === 'clone';
-  document.getElementById('style-chips').style.display = isClone ? 'none' : '';
+  document.getElementById('style-chips').style.display = '';
   document.getElementById('style-custom').style.display = 'none';
   document.getElementById('style-clone-note').style.display = isClone ? '' : 'none';
   document.getElementById('clone-warn').style.display = isClone ? '' : 'none';
-  if (isClone) { _styleVal = ''; _styleCustom = ''; }
 }
 
 // ─── Engine status polling ────────────────────────────────────────────────────

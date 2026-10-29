@@ -6,6 +6,96 @@ import re
 
 from kvoice.normalize._num import MESES, digitos_separados, numero_para_palavras
 
+# ---------------------------------------------------------------------------
+# Pré-processamento (antes da normalização de padrões)
+# ---------------------------------------------------------------------------
+
+_RE_EMOJI = re.compile(
+    "[\U0001f600-\U0001f64f"  # emoticons
+    "\U0001f300-\U0001f5ff"  # símbolos e pictogramas
+    "\U0001f680-\U0001f6ff"  # transporte e mapas
+    "\U0001f1e0-\U0001f1ff"  # bandeiras (pares de letras regionais)
+    "\U00002600-\U000027bf"  # símbolos Unicode miscelâneos
+    "\U0001f900-\U0001f9ff"  # suplemento de símbolos expressivos
+    "\U0001fa00-\U0001faff"  # símbolos e pictogramas estendidos A/B
+    "]+",
+    flags=re.UNICODE,
+)
+_RE_RETICENCIAS = re.compile(r"\.{3,}|…")
+_RE_PONTO_REPETIDO = re.compile(r"([!?]){2,}")
+
+# Abreviações: (padrão, expansão)  — ordem importa (mais específico antes)
+_ABREVIACOES: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"\bDra\.(?=\s)", re.IGNORECASE), "doutora"),
+    (re.compile(r"\bDr\.(?=\s)", re.IGNORECASE), "doutor"),
+    (re.compile(r"\bProfa\.(?=\s)", re.IGNORECASE), "professora"),
+    (re.compile(r"\bProf\.(?=\s)", re.IGNORECASE), "professor"),
+    (re.compile(r"\bSra\.(?=\s)", re.IGNORECASE), "senhora"),
+    (re.compile(r"\bSr\.(?=\s)", re.IGNORECASE), "senhor"),
+    (re.compile(r"\bEng[aº°]?\.(?=\s)", re.IGNORECASE), "engenheiro"),
+    (re.compile(r"\bAv\.(?=\s)", re.IGNORECASE), "avenida"),
+    # "R." apenas quando seguido de letra maiúscula (nome de rua)
+    (re.compile(r"\bR\.(?=\s[A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇ])"), "rua"),
+    (re.compile(r"\bp\.\s*ex\.", re.IGNORECASE), "por exemplo"),
+    (re.compile(r"\betc\.", re.IGNORECASE), "et cetera"),
+    (re.compile(r"\bpágs?\.", re.IGNORECASE), "página"),
+    (re.compile(r"\bvol\.", re.IGNORECASE), "volume"),
+    (re.compile(r"\bn[°º]\s*"), "número "),
+    (re.compile(r"\bkm\b", re.IGNORECASE), "quilômetros"),
+    (re.compile(r"\bkg\b", re.IGNORECASE), "quilogramas"),
+    (re.compile(r"\bml\b"), "mililitros"),
+    (re.compile(r"\bmg\b"), "miligramas"),
+]
+
+# Anglicismos com leitura pt-BR esperada
+_ANGLICISMOS: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"\bWhatsApp\b"), "uats ap"),
+    (re.compile(r"\bYouTube\b"), "iúti iubi"),
+    (re.compile(r"\bTikTok\b", re.IGNORECASE), "tique toque"),
+    (re.compile(r"\bLinkedIn\b", re.IGNORECASE), "linquidin"),
+    (re.compile(r"\bNetflix\b", re.IGNORECASE), "Nétiflix"),
+    (re.compile(r"\biPhone\b"), "aifone"),
+    (re.compile(r"\biPad\b"), "aipade"),
+    (re.compile(r"\bBluetooth\b", re.IGNORECASE), "blutuf"),
+    (re.compile(r"\bpodcast\b", re.IGNORECASE), "pódqueste"),
+    (re.compile(r"\bstreaming\b", re.IGNORECASE), "estrimingue"),
+    (re.compile(r"\bselfie\b", re.IGNORECASE), "selfi"),
+    (re.compile(r"\bhashtag\b", re.IGNORECASE), "áshtegue"),
+    (re.compile(r"\bdownload\b", re.IGNORECASE), "daonloud"),
+    (re.compile(r"\bupload\b", re.IGNORECASE), "aploud"),
+    (re.compile(r"\bbackup\b", re.IGNORECASE), "béquiap"),
+    (re.compile(r"\bonline\b", re.IGNORECASE), "onlaine"),
+    (re.compile(r"\boffline\b", re.IGNORECASE), "oflaine"),
+    (re.compile(r"\bfeedback\b", re.IGNORECASE), "fídbéque"),
+    (re.compile(r"\bwebsite\b", re.IGNORECASE), "uébsaite"),
+    (re.compile(r"\bsoftware\b", re.IGNORECASE), "sóftuer"),
+    (re.compile(r"\bhardware\b", re.IGNORECASE), "árduer"),
+    (re.compile(r"\bstartup\b", re.IGNORECASE), "estárt ap"),
+    (re.compile(r"\bcashback\b", re.IGNORECASE), "quéshbéque"),
+    (re.compile(r"\bvoucher\b", re.IGNORECASE), "vâucher"),
+    (re.compile(r"\bcheckout\b", re.IGNORECASE), "chécáute"),
+    (re.compile(r"\bscore\b", re.IGNORECASE), "escôre"),
+    (re.compile(r"\bstories\b", re.IGNORECASE), "estóris"),
+    (re.compile(r"\bstory\b", re.IGNORECASE), "estori"),
+    (re.compile(r"\blive\b"), "laive"),
+    (re.compile(r"\bsmartphone\b", re.IGNORECASE), "esmartefone"),
+    (re.compile(r"\btablet\b", re.IGNORECASE), "téblete"),
+    (re.compile(r"\bnotebook\b", re.IGNORECASE), "nótibuk"),
+]
+
+
+def _preprocess(text: str) -> str:
+    """Remove emojis, normaliza reticências e expande abreviações comuns."""
+    text = _RE_EMOJI.sub(" ", text)
+    text = _RE_RETICENCIAS.sub(", ", text)
+    text = _RE_PONTO_REPETIDO.sub(r"\1", text)
+    for pat, rep in _ABREVIACOES:
+        text = pat.sub(rep, text)
+    # Remove espaços duplicados gerados pelo processo
+    text = re.sub(r"  +", " ", text).strip()
+    return text
+
+
 _LETRAS: dict[str, str] = {
     "A": "á",
     "B": "bê",
@@ -189,6 +279,7 @@ def _cardinal(m: re.Match[str]) -> str:
 
 
 def normalize(text: str, dict_: dict[str, str] | None = None) -> str:
+    text = _preprocess(text)
     if dict_:
         for termo, expansao in dict_.items():
             text = text.replace(termo, expansao)
@@ -205,6 +296,9 @@ def normalize(text: str, dict_: dict[str, str] | None = None) -> str:
     text = _RE_ORDINAL.sub(_ordinal, text)
     for sigla, forma in _PALAVRAS_NATIVAS.items():
         text = re.sub(rf"\b{re.escape(sigla)}\b", forma, text)
+    # Anglicismos antes da regra de acrônimos (evita soletração)
+    for pat, rep in _ANGLICISMOS:
+        text = pat.sub(rep, text)
     text = _RE_ACRONIMO.sub(_acronimo, text)
     text = _RE_CARDINAL.sub(_cardinal, text)
     return text
