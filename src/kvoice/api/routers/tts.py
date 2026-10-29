@@ -41,7 +41,9 @@ router = APIRouter(tags=["tts"])
 
 _EXT: dict[str, str] = {"ogg_opus": "ogg", "mp3_44100": "mp3", "wav_24000": "wav"}
 _FLUSH = "\x00"
-_MAX_CHARS_SEGMENTO = 250
+_MAX_CHARS_SEGMENTO = 600
+# Preferência: dividir apenas em ponto final para preservar contexto de perguntas/exclamações
+_RE_FRASE_PONTO = re.compile(r"(?<=[.])\s+")
 _RE_FRASE = re.compile(r"(?<=[.!?])\s+")
 
 
@@ -49,7 +51,11 @@ def _split_sentencas(text: str) -> list[str]:
     """Divide texto longo em sentenças para preservar prosódia por segmento."""
     if len(text) <= _MAX_CHARS_SEGMENTO:
         return [text]
-    partes = _RE_FRASE.split(text.strip())
+    # Prefere dividir apenas em ponto final; cai para qualquer pontuação se necessário
+    for regex in (_RE_FRASE_PONTO, _RE_FRASE):
+        partes = regex.split(text.strip())
+        if len(partes) > 1:
+            break
     grupos: list[str] = []
     atual = ""
     for parte in partes:
@@ -168,7 +174,7 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
             if i == 0:
                 primeiro_ttfa = seg.ttfa_ms
             pcm_parts.append(seg.data)
-        silence = b"\x00" * int(0.2 * decision.engine.sample_rate) * 2
+        silence = b"\x00" * int(0.06 * decision.engine.sample_rate) * 2
         combined = silence.join(pcm_parts)
         audio = Audio(
             data=combined,

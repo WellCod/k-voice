@@ -80,6 +80,96 @@ casos:
     entrada: "10º andar"
     esperado: "décimo andar"
 
+  - id: ordinal_15_masc
+    entrada: "15º lugar"
+    esperado: "décimo quinto lugar"
+
+  - id: ordinal_21_fem
+    entrada: "21ª edição"
+    esperado: "vigésima primeira edição"
+
+  - id: ordinal_100_masc
+    entrada: "100º aniversário"
+    esperado: "centésimo aniversário"
+
+  - id: ordinal_101_fem
+    entrada: "101ª vez"
+    esperado: "centésima primeira vez"
+
+  # -----------------------------------------------------------------------
+  # Moeda sem centavos
+  # -----------------------------------------------------------------------
+  - id: moeda_sem_centavos
+    entrada: "R$ 100"
+    esperado: "cem reais"
+
+  - id: moeda_mil_sem_centavos
+    entrada: "R$ 1.000"
+    esperado: "mil reais"
+
+  # -----------------------------------------------------------------------
+  # Data sem ano
+  # -----------------------------------------------------------------------
+  - id: data_curta
+    entrada: "reunião em 15/03"
+    esperado: "reunião em quinze de março"
+
+  # -----------------------------------------------------------------------
+  # Hora coloquial pt-BR
+  # -----------------------------------------------------------------------
+  - id: hora_h_com_minutos
+    entrada: "às 14h30"
+    esperado: "às quatorze horas e trinta minutos"
+
+  - id: hora_h_sem_minutos
+    entrada: "às 9h"
+    esperado: "às nove horas"
+
+  # -----------------------------------------------------------------------
+  # Abreviações
+  # -----------------------------------------------------------------------
+  - id: abrev_dr
+    entrada: "Dr. João"
+    esperado: "doutor João"
+
+  - id: abrev_av
+    entrada: "Av. Paulista"
+    esperado: "avenida Paulista"
+
+  - id: abrev_art
+    entrada: "art. 45"
+    esperado: "artigo quarenta e cinco"
+
+  - id: abrev_paragrafo
+    entrada: "§ 2º"
+    esperado: "parágrafo segundo"
+
+  # -----------------------------------------------------------------------
+  # Unidades compostas
+  # -----------------------------------------------------------------------
+  - id: unidade_kmh
+    entrada: "80 km/h"
+    esperado: "oitenta quilômetros por hora"
+
+  - id: unidade_ms
+    entrada: "10 m/s"
+    esperado: "dez metros por segundo"
+
+  - id: unidade_m2
+    entrada: "50 m²"
+    esperado: "cinquenta metros quadrados"
+
+  # -----------------------------------------------------------------------
+  # Siglas case-insensitive
+  # -----------------------------------------------------------------------
+  - id: sigla_pix_minusculo
+    entrada: "via pix"
+    esperado: "via pix"
+
+  - id: sigla_pix_misto
+    entrada: "via Pix"
+    esperado: "via pix"
+
   # -----------------------------------------------------------------------
   # Datas
   # -----------------------------------------------------------------------
