@@ -446,7 +446,17 @@ _PALAVRAS_NATIVAS: dict[str, str] = {
     "HBO": "agá bê ô",
     "ESPN": "i esse pê ene",
     "MTV": "eme tê vê",
-    # ── Outros ─────────────────────────────────────────────────────────────────
+    # ── Esportes ────────────────────────────────────────────────────────────────
+    "UFC": "u efe cê",
+    "NBA": "ene bê á",
+    "NFL": "ene efe ele",
+    "MLB": "eme ele bê",
+    "NHL": "ene agá ele",
+    # ── Universidades ───────────────────────────────────────────────────────────
+    "USP": "u esse pê",
+    "UNB": "u ene bê",
+    "IME": "i eme ê",
+    # ── Documentos ──────────────────────────────────────────────────────────────
     "CEP": "cê ê pê",
     "CPF": "cê pê efe",
     "RG": "erre gê",
@@ -603,12 +613,11 @@ _VOGAIS_UPPER = frozenset("AEIOUÁÉÍÓÚÂÊÎÔÛÃÕ")
 
 def _acronimo(m: re.Match[str]) -> str:
     palavra = m.group(0)
-    vogais = sum(1 for c in palavra if c in _VOGAIS_UPPER)
-    n = len(palavra)
-    # Palavra em maiúscula com vogais → ênfase tipográfica, não sigla → caixa baixa.
-    # Siglas verdadeiras têm 0 vogais (CPF, RG) ou exatamente 1 vogal em ≤ 3 letras (TED).
-    # Casos com 1 vogal em ≤ 3 letras conhecidos (TED, DOC, etc.) já estão em _PALAVRAS_NATIVAS.
-    if vogais >= 2 or (vogais == 1 and n >= 4):
+    # Qualquer vogal → palavra em caixa alta (ênfase), não sigla → minúscula.
+    # Siglas com vogal que devem ser soletradas (TED, SUS, CDI…) já foram tratadas
+    # por _PALAVRAS_NATIVAS antes desta etapa.
+    # Siglas sem vogal (CPF, RG, STF, FGTS…) → soletra letra a letra.
+    if any(c in _VOGAIS_UPPER for c in palavra):
         return palavra.lower()
     return " ".join(_LETRAS.get(c, c) for c in palavra)
 
