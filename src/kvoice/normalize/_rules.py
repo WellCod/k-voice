@@ -140,6 +140,10 @@ _ANGLICISMOS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bsmartphone\b", re.IGNORECASE), "esmartefone"),
     (re.compile(r"\btablet\b", re.IGNORECASE), "téblete"),
     (re.compile(r"\bnotebook\b", re.IGNORECASE), "nótibuk"),
+    # Palavras com pronúncia pt-BR não óbvia
+    (re.compile(r"\bpok[eé]bola\b", re.IGNORECASE), "poquébola"),
+    (re.compile(r"\bPokémon\b", re.IGNORECASE), "Pokêmon"),
+    (re.compile(r"\bPikachu\b", re.IGNORECASE), "Picachú"),
 ]
 
 
