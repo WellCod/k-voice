@@ -152,3 +152,33 @@ async def test_autenticacao_compat_e_mcp_carrega_cliente(engine: Any, db: AsyncS
     resultado = await _validar_token(raw)
     assert resultado is not None
     assert resultado[0].id == client.id
+
+
+async def test_criar_admin_gera_token_que_autentica(engine: Any) -> None:
+    import importlib.util
+    import pathlib
+
+    from kvoice.api.deps import autenticar_token
+
+    caminho = pathlib.Path(__file__).parents[2] / "scripts" / "criar_admin.py"
+    spec = importlib.util.spec_from_file_location("criar_admin", caminho)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    url = engine.url.render_as_string(hide_password=False)
+    raw = await mod._criar(url, "Admin Bench", "v_bench", "serena")
+    raw2 = await mod._criar(url, "Admin Bench 2", "v_bench", "serena")  # voz já existe
+
+    for token in (raw, raw2):
+        auth = await autenticar_token(token)
+        assert auth is not None
+        assert auth[1].has_scope("tts:stream")
+
+    from kvoice.db.session import session_factory
+
+    async with session_factory()() as db:
+        voz = await db.get(Voice, "v_bench")
+    assert voz is not None
+    assert voz.model_id == "serena"
+    assert voz.origin == VoiceOrigin.preset

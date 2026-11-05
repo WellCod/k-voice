@@ -40,6 +40,8 @@ uv run alembic upgrade head
 uv run uvicorn kvoice.api.app:app --host 0.0.0.0 --port 8003
 ```
 
+Para validar o streaming em GPU numa máquina alugada, siga [docs/gpu-nuvem.md](docs/gpu-nuvem.md).
+
 Acesse `http://localhost:8003/demo`. O motor em CPU usa o `StubEngine` (áudio silencioso) ou o Qwen3-TTS com `QWEN3_DEVICE=cpu` (lento — primeira síntese de clonagem pode levar 2–5 min). Em GPU NVIDIA, `QWEN3_DEVICE=cuda` com o torch de CUDA instalado.
 
 ### Compose de desenvolvimento
