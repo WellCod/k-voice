@@ -17,6 +17,7 @@ from kvoice import referencias
 from kvoice.referencias import ChaveAusente, arquivo_decifrado, cifrar, decifrar
 
 _WAV = b"RIFF" + b"\x00" * 2000
+_OGG = b"OggS\x00\x02" + b"\x00" * 2000
 
 
 @pytest.fixture()
@@ -50,6 +51,18 @@ def test_wav_antigo_sem_cifra_ainda_le(sem_chave: None) -> None:
     assert decifrar(_WAV) == _WAV
 
 
+def test_ogg_antigo_sem_cifra_ainda_le(sem_chave: None) -> None:
+    assert decifrar(_OGG) == _OGG
+
+
+def test_temporario_mantem_extensao_original(chave: str, tmp_path: Path) -> None:
+    origem = tmp_path / "ref.ogg"
+    origem.write_bytes(cifrar(_OGG))
+    with arquivo_decifrado(str(origem)) as caminho:
+        assert caminho.endswith(".ogg")
+        assert Path(caminho).read_bytes() == _OGG
+
+
 def test_arquivo_decifrado_existe_so_dentro_do_bloco(chave: str, tmp_path: Path) -> None:
     origem = tmp_path / "ref.wav"
     origem.write_bytes(cifrar(_WAV))
@@ -78,10 +91,14 @@ def test_script_cifra_pasta_e_e_idempotente(chave: str, tmp_path: Path) -> None:
     (tmp_path / "v1").mkdir()
     (tmp_path / "v1" / "a.wav").write_bytes(_WAV)
     (tmp_path / "v1" / "b.wav").write_bytes(cifrar(_WAV))
+    (tmp_path / "v1" / "c.ogg").write_bytes(_OGG)
+    (tmp_path / "v1" / "d.wav").write_bytes(_OGG)  # OGG com extensão .wav, como no legado
 
-    assert mod.cifrar_pasta(tmp_path) == (1, 1)
-    assert mod.cifrar_pasta(tmp_path) == (0, 2)
+    assert mod.cifrar_pasta(tmp_path) == (3, 1)
+    assert mod.cifrar_pasta(tmp_path) == (0, 4)
     assert decifrar((tmp_path / "v1" / "a.wav").read_bytes()) == _WAV
+    assert decifrar((tmp_path / "v1" / "c.ogg").read_bytes()) == _OGG
+    assert decifrar((tmp_path / "v1" / "d.wav").read_bytes()) == _OGG
 
 
 def _app_upload(voz: Any) -> FastAPI:

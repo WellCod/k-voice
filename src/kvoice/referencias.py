@@ -20,7 +20,8 @@ from cryptography.fernet import Fernet
 from kvoice.settings import get_settings
 
 _log = logging.getLogger(__name__)
-_WAV = b"RIFF"
+# Todo token Fernet começa com o byte de versão 0x80, que em base64 vira "gAAAAA".
+_FERNET = b"gAAAAA"
 
 
 class ChaveAusente(RuntimeError):
@@ -46,9 +47,13 @@ def cifrar(dados: bytes) -> bytes:
     return _fernet().encrypt(dados)
 
 
+def esta_cifrado(dados: bytes) -> bool:
+    return dados.startswith(_FERNET)
+
+
 def decifrar(dados: bytes) -> bytes:
-    if dados.startswith(_WAV):
-        # Gravado antes da cifra; scripts/cifrar_referencias.py migra.
+    if not esta_cifrado(dados):
+        # Gravado antes da cifra (WAV ou OGG); scripts/cifrar_referencias.py migra.
         _log.warning("áudio de referência sem cifra em disco")
         return dados
     return _fernet().decrypt(dados)
@@ -65,9 +70,11 @@ def arquivo_decifrado(caminho: str) -> Iterator[str]:
     """Caminho de um WAV decifrado que existe só dentro do bloco.
 
     O nome é fixo por referência: o faster-qwen3-tts guarda o prompt da voz em memória
-    indexado pelo caminho e só relê o arquivo quando muda de voz.
+    indexado pelo caminho e só relê o arquivo quando muda de voz. A extensão original
+    é mantida porque referências antigas são OGG.
     """
-    destino = _dir_temp() / (hashlib.sha256(caminho.encode()).hexdigest()[:32] + ".wav")
+    sufixo = Path(caminho).suffix or ".wav"
+    destino = _dir_temp() / (hashlib.sha256(caminho.encode()).hexdigest()[:32] + sufixo)
     dados = decifrar(Path(caminho).read_bytes())
     fd = os.open(destino, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     try:
