@@ -92,7 +92,7 @@ def _kvoice_decision() -> RoutingDecision:
 # ---------------------------------------------------------------------------
 
 
-def test_compat_mp3_xi_key() -> None:
+def test_compat_mp3_xi_key(_uso: AsyncMock) -> None:
     """Síntese com xi-api-key e formato mp3 padrão."""
     fc = _fake_client()
     ft = _fake_token()
@@ -116,6 +116,12 @@ def test_compat_mp3_xi_key() -> None:
     assert resp.status_code == 200
     assert resp.content == _ENCODED
     assert resp.headers["content-type"] == _CONTENT_TYPE
+    _uso.assert_awaited_once()
+    uso = _uso.await_args.kwargs
+    assert uso["client_id"] == fc.id
+    assert uso["voice_id"] == "v_fake"
+    assert uso["characters"] == len("Olá, tudo bem?")
+    assert uso["fallback"] is False
 
 
 def test_compat_ogg_bearer() -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import AsyncGenerator
 from typing import Annotated
@@ -20,6 +21,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
+_log = logging.getLogger(__name__)
 
 
 def _consulta_token(raw: str) -> Select[ApiToken]:
@@ -71,6 +73,40 @@ def _exigir_scope(scope: str):  # type: ignore[no-untyped-def]
         return auth
 
     return _check
+
+
+async def gravar_uso(
+    *,
+    request_id: uuid.UUID,
+    client_id: uuid.UUID,
+    voice_id: str,
+    engine_name: str,
+    characters: int,
+    audio_ms: float,
+    ttfa_ms: float,
+    total_ms: float,
+    fallback: bool = False,
+    fallback_reason: str | None = None,
+) -> None:
+    """Grava a medição numa sessão própria; falha vira log, nunca erro para o cliente."""
+    try:
+        async with session_factory()() as db:
+            await registrar_uso(
+                db,
+                request_id=request_id,
+                client_id=client_id,
+                voice_id=voice_id,
+                model=engine_name,
+                characters=characters,
+                audio_ms=audio_ms,
+                ttfa_ms=ttfa_ms,
+                total_ms=total_ms,
+                engine=engine_name,
+                fallback=fallback,
+                fallback_reason=fallback_reason,
+            )
+    except Exception:
+        _log.exception("falha ao gravar uso (request_id=%s)", request_id)
 
 
 async def registrar_uso(

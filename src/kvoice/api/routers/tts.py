@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from starlette.websockets import WebSocketDisconnect
 
 from kvoice.api.deps import AuthDep, DbSession, autenticar_token
+from kvoice.api.deps import gravar_uso as _gravar_uso
 from kvoice.api.metrics import (
     streams_active,
     streams_cancelled,
@@ -88,41 +89,6 @@ async def _buscar_voz(voice_id: str) -> DbVoice | None:
         return await db.get(DbVoice, voice_id)
 
 
-async def _gravar_uso(
-    *,
-    request_id: uuid.UUID,
-    client_id: uuid.UUID,
-    voice_id: str,
-    engine_name: str,
-    characters: int,
-    audio_ms: float,
-    ttfa_ms: float,
-    total_ms: float,
-    fallback: bool = False,
-    fallback_reason: str | None = None,
-) -> None:
-    try:
-        from kvoice.api.deps import registrar_uso
-
-        async with session_factory()() as db:
-            await registrar_uso(
-                db,
-                request_id=request_id,
-                client_id=client_id,
-                voice_id=voice_id,
-                model=engine_name,
-                characters=characters,
-                audio_ms=audio_ms,
-                ttfa_ms=ttfa_ms,
-                total_ms=total_ms,
-                engine=engine_name,
-                fallback=fallback,
-                fallback_reason=fallback_reason,
-            )
-    except Exception:
-        _log.exception("falha ao gravar uso (request_id=%s)", request_id)
-
-
 @router.post("/v1/tts", response_model=None)
 async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> Response:
     client, token = auth
@@ -136,6 +102,7 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
     if orm_voice is None or not orm_voice.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voz não encontrada")
 
+    t0 = time.monotonic()
     decision = await decide_engine(client.id, body.voice_id)
     if decision is None:
         raise HTTPException(
@@ -173,6 +140,18 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
     )
     duration_ms = round(pcm_duration_ms(audio.data, audio.sample_rate), 1)
     request_id = uuid.uuid4()
+    await _gravar_uso(
+        request_id=request_id,
+        client_id=client.id,
+        voice_id=body.voice_id,
+        engine_name=decision.engine_name,
+        characters=len(body.text),
+        audio_ms=duration_ms,
+        ttfa_ms=audio.ttfa_ms,
+        total_ms=(time.monotonic() - t0) * 1000,
+        fallback=decision.is_fallback,
+        fallback_reason=decision.fallback_reason,
+    )
 
     if body.delivery == "bytes":
         job = BatchJob(

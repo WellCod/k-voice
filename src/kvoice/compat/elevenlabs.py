@@ -10,15 +10,18 @@ Mapeamento de formato via output_format query param.
 from __future__ import annotations
 
 import asyncio
+import time
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Header, HTTPException, Query, status
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from kvoice.api.deps import autenticar_token
+from kvoice.api.deps import autenticar_token, gravar_uso
 from kvoice.api.routing import decide_engine
 from kvoice.audio import encode as encode_audio
+from kvoice.audio import pcm_duration_ms
 from kvoice.db.models import ApiToken, Client
 from kvoice.db.models import Voice as DbVoice
 from kvoice.db.session import session_factory
@@ -93,6 +96,7 @@ async def text_to_speech(
     if orm_voice is None or not orm_voice.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voz não encontrada")
 
+    t0 = time.monotonic()
     decision = await decide_engine(client.id, voice_id)
     if decision is None:
         raise HTTPException(
@@ -109,5 +113,17 @@ async def text_to_speech(
     audio = await decision.engine.synthesize(normalize(apply_dict(body.text, pron)), voice, opts)
     encoded, content_type = await asyncio.to_thread(
         encode_audio, audio.data, audio.sample_rate, our_format
+    )
+    await gravar_uso(
+        request_id=uuid.uuid4(),
+        client_id=client.id,
+        voice_id=voice_id,
+        engine_name=decision.engine_name,
+        characters=len(body.text),
+        audio_ms=pcm_duration_ms(audio.data, audio.sample_rate),
+        ttfa_ms=audio.ttfa_ms,
+        total_ms=(time.monotonic() - t0) * 1000,
+        fallback=decision.is_fallback,
+        fallback_reason=decision.fallback_reason,
     )
     return Response(content=encoded, media_type=content_type)

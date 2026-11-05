@@ -12,6 +12,7 @@ Sem streaming de áudio — ADR-0006.
 from __future__ import annotations
 
 import asyncio
+import time
 import uuid
 from typing import Any
 
@@ -19,7 +20,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.shared.exceptions import MCPError
 from sqlalchemy import select
 
-from kvoice.api.deps import autenticar_token
+from kvoice.api.deps import autenticar_token, gravar_uso
 from kvoice.api.routing import decide_engine
 from kvoice.audio import encode as encode_audio
 from kvoice.audio import pcm_duration_ms
@@ -116,6 +117,7 @@ async def synthesize(
     if orm_voice is None or not orm_voice.is_active:
         raise MCPError(-32000, f"Voz {voice_id!r} não encontrada.")
 
+    t0 = time.monotonic()
     decision = await decide_engine(client.id, voice_id)
     if decision is None:
         raise MCPError(-32000, "Motor de síntese indisponível.")
@@ -130,6 +132,18 @@ async def synthesize(
     )
     duration_ms = round(pcm_duration_ms(audio.data, audio.sample_rate), 1)
     request_id = uuid.uuid4()
+    await gravar_uso(
+        request_id=request_id,
+        client_id=client.id,
+        voice_id=voice_id,
+        engine_name=decision.engine_name,
+        characters=len(text),
+        audio_ms=duration_ms,
+        ttfa_ms=audio.ttfa_ms,
+        total_ms=(time.monotonic() - t0) * 1000,
+        fallback=decision.is_fallback,
+        fallback_reason=decision.fallback_reason,
+    )
 
     key = f"outputs/{request_id}.{_EXT[format]}"
     storage = get_storage()

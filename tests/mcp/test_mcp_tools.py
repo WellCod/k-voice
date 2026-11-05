@@ -102,7 +102,7 @@ def _mock_storage() -> Any:
 # ---------------------------------------------------------------------------
 
 
-async def test_synthesize_retorna_url() -> None:
+async def test_synthesize_retorna_url(_uso: AsyncMock) -> None:
     """Síntese bem-sucedida devolve dict com url, duration_ms e characters."""
     fc = _fake_client()
     ft = _fake_token_all()
@@ -122,6 +122,11 @@ async def test_synthesize_retorna_url() -> None:
     assert result["duration_ms"] > 0
     assert result["characters"] == len("Olá, tudo bem?")
     assert "request_id" in result
+    _uso.assert_awaited_once()
+    uso = _uso.await_args.kwargs
+    assert str(uso["request_id"]) == result["request_id"]
+    assert uso["client_id"] == fc.id
+    assert uso["audio_ms"] == result["duration_ms"]
 
 
 async def test_synthesize_voz_nao_encontrada() -> None:
