@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import threading
 import time
 import types
@@ -423,3 +425,72 @@ def test_ws_cancel_timing(
     elapsed_ms = (time.monotonic() - t0) * 1000
     # 500 ms de folga para CPU/CI — gate real (50 ms) é medido em GPU com motor real
     assert elapsed_ms < 500, f"cancelamento demorou {elapsed_ms:.0f} ms"
+
+
+class _SlowEngine(_FakeEngine):
+    """Motor que fica 3 s gerando o primeiro chunk, como uma inferência longa."""
+
+    async def stream(
+        self,
+        text: Any,
+        voice: Voice,
+        opts: SynthOptions,
+    ) -> AsyncGenerator[AudioChunk, None]:
+        async def _gen() -> AsyncGenerator[AudioChunk, None]:
+            async for _ in text:
+                await asyncio.sleep(3)
+                yield AudioChunk(data=b"\x00" * 960, sample_rate=24000, duration_ms=20.0)
+
+        return _gen()
+
+
+def test_ws_cancel_nao_espera_sintese_em_curso(
+    fake_client: Any, fake_token: Any, fake_voice: Any
+) -> None:
+    eng = _SlowEngine()
+    set_engine(eng)  # type: ignore[arg-type]
+    app = _make_app()
+    with (
+        _auth_patch(fake_client, fake_token),
+        _voice_patch(fake_voice),
+        _routing_patch(_kvoice_decision(eng)),
+        _uso_patch(),
+        TestClient(app) as client,
+        client.websocket_connect("/v1/tts/stream?token=tok") as ws,
+    ):
+        ws.send_json({"type": "start", "voice_id": "v_fake"})
+        ws.receive_json()
+        ws.send_json({"type": "text", "text": "Uma frase completa.", "flush": True})
+        time.sleep(0.1)
+        t0 = time.monotonic()
+        ws.send_json({"type": "cancel"})
+
+    elapsed_ms = (time.monotonic() - t0) * 1000
+    assert elapsed_ms < 1000, f"cancelamento esperou a síntese: {elapsed_ms:.0f} ms"
+
+
+def test_ws_texto_nul_nao_vira_flush(
+    engine: _FakeEngine, fake_client: Any, fake_token: Any, fake_voice: Any
+) -> None:
+    app = _make_app()
+    with (
+        _auth_patch(fake_client, fake_token),
+        _voice_patch(fake_voice),
+        _routing_patch(_kvoice_decision(engine)),
+        _uso_patch(),
+        TestClient(app) as client,
+        client.websocket_connect("/v1/tts/stream?token=tok") as ws,
+    ):
+        ws.send_json({"type": "start", "voice_id": "v_fake"})
+        ws.receive_json()
+        ws.send_json({"type": "text", "text": "\x00"})
+        ws.send_json({"type": "end"})
+        tipos = []
+        while True:
+            msg = ws.receive()
+            if msg.get("text"):
+                tipo = json.loads(msg["text"])["type"]
+                tipos.append(tipo)
+                if tipo == "done":
+                    break
+    assert "flushed" not in tipos

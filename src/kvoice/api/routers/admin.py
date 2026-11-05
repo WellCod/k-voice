@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import pathlib
 import uuid
@@ -37,6 +38,8 @@ from kvoice.db.models import (
 
 # Diretório local para áudio de referência (dev; produção usa S3)
 _REFS_DIR = pathlib.Path(__file__).parent.parent.parent.parent.parent / "data" / "references"
+
+_MAX_REF_BYTES = 25 * 1024 * 1024
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 _admin = Depends(_exigir_scope("admin"))
@@ -174,7 +177,12 @@ async def upload_audio_referencia(
     if voice is None or not voice.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voz não encontrada")
 
-    audio_bytes = await audio.read()
+    audio_bytes = await audio.read(_MAX_REF_BYTES + 1)
+    if len(audio_bytes) > _MAX_REF_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Áudio de referência acima de 25 MB",
+        )
     if len(audio_bytes) < 1000:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Áudio muito curto")
 
@@ -186,7 +194,7 @@ async def upload_audio_referencia(
 
     # Normaliza loudness, remove silêncio e converte para WAV 16 kHz mono
     try:
-        audio_bytes, duration_s = preprocess_ref_audio(audio_bytes, ext)
+        audio_bytes, duration_s = await asyncio.to_thread(preprocess_ref_audio, audio_bytes, ext)
     except RuntimeError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
