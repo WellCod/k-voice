@@ -23,6 +23,7 @@ from kvoice.engine.qwen3_tts import (
     _resolve_language,
 )
 from kvoice.engine.types import Audio, AudioChunk, Capacity, SynthOptions, Voice, fatiar_pcm
+from kvoice.referencias import arquivo_decifrado
 
 _SAMPLE_RATE = 24_000
 _CHUNK_SAMPLES = 4_800  # 200 ms a 24 kHz
@@ -98,14 +99,15 @@ class FasterQwen3Engine:
             def _clone() -> _Gerador:
                 if self._base_model is None:
                     self._base_model = _carregar(self._base_model_id, self._device, self._dtype)
-                gen: _Gerador = self._base_model.generate_voice_clone_streaming(
-                    text=text,
-                    language=language,
-                    ref_audio=ref_audio,
-                    ref_text=ref_text,
-                    chunk_size=self._chunk_size,
-                )
-                return gen
+                # O arquivo decifrado vive enquanto o gerador roda; _rodar fecha o gerador.
+                with arquivo_decifrado(ref_audio) as ref:
+                    yield from self._base_model.generate_voice_clone_streaming(
+                        text=text,
+                        language=language,
+                        ref_audio=ref,
+                        ref_text=ref_text,
+                        chunk_size=self._chunk_size,
+                    )
 
             return self._base_lock, _clone
 

@@ -35,6 +35,7 @@ from kvoice.db.models import (
     VoiceConsent,
     VoiceOrigin,
 )
+from kvoice.referencias import ChaveAusente, cifrar, exigir_chave
 
 # Diretório local para áudio de referência (dev; produção usa S3)
 _REFS_DIR = pathlib.Path(__file__).parent.parent.parent.parent.parent / "data" / "references"
@@ -176,6 +177,12 @@ async def upload_audio_referencia(
     voice = await db.get(Voice, voice_id)
     if voice is None or not voice.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voz não encontrada")
+    try:
+        exigir_chave()
+    except ChaveAusente as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
 
     audio_bytes = await audio.read(_MAX_REF_BYTES + 1)
     if len(audio_bytes) > _MAX_REF_BYTES:
@@ -207,13 +214,13 @@ async def upload_audio_referencia(
             detail=f"Áudio de fala limpa muito curto ({duration_s:.1f}s). Mínimo: 5 segundos.",
         )
 
-    # Salva localmente como WAV normalizado (produção: substituir por upload S3 em kvoice.storage)
+    # WAV normalizado e cifrado em disco local (produção: S3 em kvoice.storage)
     ext = "wav"
     _REFS_DIR.mkdir(parents=True, exist_ok=True)
     file_key = f"{voice_id}/{uuid.uuid4()}.{ext}"
     local_path = _REFS_DIR / file_key
     local_path.parent.mkdir(parents=True, exist_ok=True)
-    local_path.write_bytes(audio_bytes)
+    local_path.write_bytes(cifrar(audio_bytes))
 
     voice.origin = VoiceOrigin.clone
     voice.ref_audio_key = str(local_path)

@@ -69,6 +69,7 @@ class TTSEngine(Protocol):
 ### 5. Armazenamento
 - Postgres: `client`, `api_token`, `voice`, `voice_consent`, `pronunciation_entry`, `routing_rule`, `usage_event`, `batch_job`.
 - S3 (ou compatível): `references/` (áudio de clonagem, cifrado com SSE-KMS), `outputs/` (lote, com lifecycle de expiração).
+- Enquanto a referência fica em disco local (`data/references`), cada arquivo é cifrado com Fernet pela `REFERENCE_AUDIO_KEY` (`kvoice.referencias`). Na clonagem o motor decifra para um arquivo temporário legível só pelo processo e apaga ao fim da geração; os pacotes do modelo só aceitam caminho.
 - Sem Redis no início. Entra só se o roteamento entre várias réplicas precisar de estado compartilhado.
 
 ## Contratos
