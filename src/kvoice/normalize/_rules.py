@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 
 from kvoice.normalize._num import MESES, digitos_separados, numero_para_palavras
 
@@ -685,12 +686,23 @@ def normalize(text: str, dict_: dict[str, str] | None = None) -> str:
     return text
 
 
-def normalize_incremental(text: str, dict_: dict[str, str] | None = None) -> tuple[str, str]:
-    """Retorna (pronto, pendente). Pendente aguarda mais texto para não quebrar padrões."""
+def normalize_incremental(
+    text: str,
+    dict_: dict[str, str] | None = None,
+    pre: Callable[[str], str] | None = None,
+) -> tuple[str, str]:
+    """Retorna (pronto, pendente). Pendente aguarda mais texto para não quebrar padrões.
+
+    `pre` recebe só as frases completas, antes da normalização (dicionário do cliente):
+    um termo nunca é aplicado partido entre dois pedaços do LLM.
+    """
     last: re.Match[str] | None = None
     for m in _RE_SAFE.finditer(text):
         last = m
     if last is None:
         return "", text
     pos = last.end()
-    return normalize(text[:pos].rstrip(), dict_), text[pos:]
+    pronto = text[:pos].rstrip()
+    if pre is not None:
+        pronto = pre(pronto)
+    return normalize(pronto, dict_), text[pos:]
