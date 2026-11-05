@@ -448,7 +448,7 @@ def test_ws_cancel_nao_espera_sintese_em_curso(
     fake_client: Any, fake_token: Any, fake_voice: Any
 ) -> None:
     eng = _SlowEngine()
-    set_engine(eng)  # type: ignore[arg-type]
+    set_engine(eng)
     app = _make_app()
     with (
         _auth_patch(fake_client, fake_token),
@@ -494,3 +494,37 @@ def test_ws_texto_nul_nao_vira_flush(
                 if tipo == "done":
                     break
     assert "flushed" not in tipos
+
+
+def test_ws_flushed_vem_depois_do_audio_e_antes_do_end(
+    fake_client: Any, fake_token: Any, fake_voice: Any
+) -> None:
+    from kvoice.engine.stub import StubEngine
+
+    eng = StubEngine()
+    set_engine(eng)
+    app = _make_app()
+    with (
+        _auth_patch(fake_client, fake_token),
+        _voice_patch(fake_voice),
+        _routing_patch(_kvoice_decision(eng)),  # type: ignore[arg-type]
+        _uso_patch(),
+        TestClient(app) as client,
+        client.websocket_connect("/v1/tts/stream?token=tok") as ws,
+    ):
+        ws.send_json({"type": "start", "voice_id": "v_fake"})
+        ws.receive_json()
+        ws.send_json({"type": "text", "text": "Primeira frase.", "flush": True})
+
+        # Sem mandar "end": o áudio da frase e o flushed precisam chegar antes.
+        eventos: list[str] = []
+        while "flushed" not in eventos:
+            msg = ws.receive()
+            eventos.append("audio" if msg.get("bytes") else json.loads(msg["text"])["type"])
+        assert eventos[0] == "audio"
+        assert eventos[-1] == "flushed"
+
+        ws.send_json({"type": "text", "text": "Segunda frase."})
+        ws.send_json({"type": "end"})
+        while (msg := ws.receive()).get("bytes") or json.loads(msg["text"])["type"] != "done":
+            pass

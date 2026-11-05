@@ -12,6 +12,8 @@ Situação levantada em 2026-10-26. A área muda rápido: revisar a cada 6 meses
 - Idiomas: zh, en, ja, ko, de, fr, ru, **pt**, es, it.
 - Streaming: sim; o fabricante cita primeiro pacote após um caractere e latência "a partir de 97 ms".
 - Medição de terceiros (pacote `faster-qwen3-tts`, 0.6B, CUDA graphs): TTFA ~156 ms numa RTX 4090, ~228 ms numa H100, ~901 ms numa T4. RTF ~4,8x tempo real na 4090.
+- Pacote oficial `qwen-tts` (0.1.1, fixado): `generate_custom_voice`, `generate_voice_clone` e `generate_voice_design` devolvem o áudio inteiro (`wavs, sr`). A docstring do parâmetro `non_streaming_mode` diz que ele só simula entrada em streaming, sem geração em streaming. O README oficial cita streaming só para o modelo, para o vLLM-Omni (futuro) e para a API DashScope. Conferido em 2026-11-05.
+- `faster-qwen3-tts` (0.5.4, 2026-10-05, código MIT; pesos seguem Apache-2.0): geradores `generate_voice_clone_streaming`, `generate_custom_voice_streaming` e `generate_voice_design_streaming`, que rendem `(audio_chunk, sample_rate, timing)` a cada `chunk_size` passos do codec (~`chunk_size`/12 s de áudio). Backend torch exige CUDA (ou ROCm), sem caminho em CPU; o backend GGML é experimental e não cita Windows. Depende de `qwen-tts-hf`, que fornece o mesmo módulo `qwen_tts` e não pode conviver com `qwen-tts` no mesmo ambiente. Conferido em 2026-11-05 no PyPI, README e `model.py`; a assinatura de `generate_custom_voice_streaming` não foi conferida no código.
 - A conferir na Fase 0: qualidade em pt-BR (sotaque brasileiro vs europeu), estabilidade em frases longas, concorrência real.
 
 ### Chatterbox Multilingual + finetune pt-BR (Resemble AI) — comparação

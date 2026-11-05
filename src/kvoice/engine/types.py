@@ -28,6 +28,26 @@ class AudioChunk:
     data: bytes  # PCM 16-bit little-endian mono
     sample_rate: int
     duration_ms: float
+    # Quantos itens do iterador de texto terminaram de soar com este chunk.
+    # O WebSocket usa isso para mandar "flushed" depois do áudio, não antes.
+    textos_concluidos: int = 0
+
+
+def fatiar_pcm(
+    data: bytes, sample_rate: int, chunk_samples: int, textos_concluidos: int = 0
+) -> list[AudioChunk]:
+    """Divide PCM em chunks; o último carrega textos_concluidos (vazio vira um chunk vazio)."""
+    step = chunk_samples * 2
+    partes = [data[i : i + step] for i in range(0, len(data), step)] or [b""]
+    return [
+        AudioChunk(
+            data=parte,
+            sample_rate=sample_rate,
+            duration_ms=(len(parte) // 2) / sample_rate * 1000,
+            textos_concluidos=textos_concluidos if i == len(partes) - 1 else 0,
+        )
+        for i, parte in enumerate(partes)
+    ]
 
 
 @dataclass(frozen=True)

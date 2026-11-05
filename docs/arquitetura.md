@@ -83,7 +83,9 @@ Servidor → cliente:
 - binário: PCM 16-bit little-endian mono no `format` pedido, em pedaços de 20–40 ms;
 - JSON: `{"type":"started","request_id":"...","engine":"kvoice","sample_rate":24000}`, `{"type":"flushed"}`, `{"type":"done","ttfa_ms":142,"audio_ms":2380}`, `{"type":"error","code":"capacity"}`.
 
-`flush` força gerar o que já chegou (fim de frase do LLM). `cancel` interrompe e descarta o que está na fila (barge-in). Formatos: `pcm_24000` (padrão LiveKit), `pcm_16000`, `pcm_48000`, `ulaw_8000`.
+`flush` força gerar o que já chegou (fim de frase do LLM). `flushed` só é enviado depois do último áudio do texto anterior ao flush: o motor marca em cada `AudioChunk` quantos itens de texto terminaram de soar (`textos_concluidos`), e o plugin do LiveKit fecha o segmento nesse ponto.
+
+Granularidade: o normalizador libera texto em fim de frase (`.`, `!`, `?` seguidos de espaço) ou no `flush`. Cada trecho liberado vai para o motor na hora, sem esperar o `end`. Com o `qwen-tts` 0.1.1, que não gera áudio em pedaços, o TTFA é o tempo de sintetizar a primeira frase inteira; geração em pedaços dentro da frase depende de outro runtime (ver [modelos](modelos.md#qwen3-tts-alibaba-time-qwen--principal)). `cancel` interrompe e descarta o que está na fila (barge-in). Formatos: `pcm_24000` (padrão LiveKit), `pcm_16000`, `pcm_48000`, `ulaw_8000`.
 
 ### Lote — `POST /v1/tts`
 
