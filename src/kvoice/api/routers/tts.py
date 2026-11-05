@@ -356,17 +356,19 @@ async def _executar_com_engine(
     async def _send_audio() -> None:
         nonlocal ttfa_ms, total_audio_ms, first_chunk, concluidos
         try:
-            async for chunk in await engine.stream(_text_iter(), voice, opts):
-                if cancelled.is_set():
-                    break
-                if chunk.data:
-                    if first_chunk:
-                        ttfa_ms = (time.monotonic() - t0) * 1000
-                        first_chunk = False
-                    await send_queue.put(chunk.data)
-                    total_audio_ms += chunk.duration_ms
-                concluidos += chunk.textos_concluidos
-                await _liberar_flushes()
+            # aclosing: ao sair do loop o motor para a geração na hora, não só no GC.
+            async with contextlib.aclosing(await engine.stream(_text_iter(), voice, opts)) as gen:
+                async for chunk in gen:
+                    if cancelled.is_set():
+                        break
+                    if chunk.data:
+                        if first_chunk:
+                            ttfa_ms = (time.monotonic() - t0) * 1000
+                            first_chunk = False
+                        await send_queue.put(chunk.data)
+                        total_audio_ms += chunk.duration_ms
+                    concluidos += chunk.textos_concluidos
+                    await _liberar_flushes()
             # Motor que não marca textos_concluidos: todo o texto soou ao fim do stream.
             concluidos = entregues
             await _liberar_flushes()
