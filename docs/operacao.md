@@ -42,6 +42,12 @@ Comparar k-voice vs ElevenLabs no mesmo período e cliente:
 - Manter 30% de folga sobre o pico do mês anterior.
 - Admissão: o motor serializa inferências; pedidos esperando o lock contam como fila (`queued` em `/health`). Com 8 ou mais na fila, o roteamento cai para a ElevenLabs (`fallback_reason=capacity`) ou recusa com `capacity`.
 
+## Áudio de referência
+
+- `REFERENCE_AUDIO_KEY` só por ambiente, nunca no repositório. Sem ela o upload de referência responde 503.
+- Perder a chave é perder todas as vozes clonadas: guardar no cofre de segredos com backup.
+- Referências gravadas antes da cifra continuam lidas (com aviso no log) até rodar `uv run python scripts/cifrar_referencias.py` com a chave do servidor.
+
 ## Logs
 
 - O token do WebSocket vai na query string; o filtro em `kvoice.api.app` troca o valor por `***` nos logs `uvicorn.error` e `uvicorn.access`. Proxy ou balanceador na frente precisa do mesmo cuidado.

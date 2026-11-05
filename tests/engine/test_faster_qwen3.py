@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import types
 from collections.abc import AsyncIterator, Iterator
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -105,18 +107,41 @@ async def test_parametros_do_preset_e_chunk_size() -> None:
     ]
 
 
-async def test_clonagem_usa_modelo_base() -> None:
+async def test_clonagem_usa_modelo_base_com_referencia_decifrada(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cryptography.fernet import Fernet
+
+    from kvoice import referencias
+
+    chave = Fernet.generate_key().decode()
+    monkeypatch.setattr(
+        referencias, "get_settings", lambda: types.SimpleNamespace(reference_audio_key=chave)
+    )
+    wav = b"RIFF" + b"" * 100
+    origem = tmp_path / "ref.wav"
+    origem.write_bytes(referencias.cifrar(wav))
+
     preset, base = _ModeloFalso(pedacos=1), _ModeloFalso(pedacos=1)
+    lido: list[bytes] = []
+    gen_original = base._gen
+
+    def _gen_que_le(**kwargs: Any) -> Iterator[tuple[np.ndarray, int, dict[str, Any]]]:
+        lido.append(Path(kwargs["ref_audio"]).read_bytes())
+        return gen_original(**kwargs)
+
+    base.generate_voice_clone_streaming = _gen_que_le  # type: ignore[method-assign]
     engine = FasterQwen3Engine(preset, base_model_id="x")
     engine._base_model = base
 
-    voz = _voz(ref_audio="/ref.wav", ref_text="texto de referência")
+    voz = _voz(ref_audio=str(origem), ref_text="texto de referência")
     gen = await engine.stream(_texto("Oi."), voz, SynthOptions())
     _ = [c async for c in gen]
 
     assert preset.chamadas == []
-    assert base.chamadas[0]["ref_audio"] == "/ref.wav"
+    assert lido == [wav]  # o modelo recebeu o WAV decifrado
     assert base.chamadas[0]["ref_text"] == "texto de referência"
+    assert not Path(base.chamadas[0]["ref_audio"]).exists()  # e ele sumiu depois
 
 
 async def test_cancelar_para_a_geracao_e_segura_o_lock_ate_a_thread_sair() -> None:

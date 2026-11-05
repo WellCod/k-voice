@@ -8,6 +8,7 @@ from collections.abc import AsyncGenerator, AsyncIterator, Callable
 import numpy as np
 
 from kvoice.engine.types import Audio, AudioChunk, Capacity, SynthOptions, Voice, fatiar_pcm
+from kvoice.referencias import arquivo_decifrado
 
 _SAMPLE_RATE = 24_000
 _CHUNK_SAMPLES = 4_800  # 200 ms a 24 kHz
@@ -140,12 +141,13 @@ class Qwen3TTSEngine:
 
         base = self._ensure_base_model()
         assert isinstance(base, Qwen3TTSModel)
-        return base.generate_voice_clone(  # type: ignore[no-any-return]
-            text=text,
-            language=language,
-            ref_audio=ref_audio_path,
-            ref_text=ref_text,
-        )
+        with arquivo_decifrado(ref_audio_path) as ref:
+            return base.generate_voice_clone(  # type: ignore[no-any-return]
+                text=text,
+                language=language,
+                ref_audio=ref,
+                ref_text=ref_text,
+            )
 
     # ------------------------------------------------------------------
     # Interface pública TTSEngine

@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     s3_bucket_references: str = "kvoice-references"
 
     elevenlabs_api_key: str = ""
+    # Chave Fernet do áudio de referência em repouso; sem ela o upload é recusado.
+    reference_audio_key: str = ""
     secret_key: str = "troque-em-producao"
     log_level: str = "INFO"
 
