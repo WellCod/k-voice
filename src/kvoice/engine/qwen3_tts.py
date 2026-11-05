@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
 
 import numpy as np
 
@@ -64,6 +64,7 @@ class Qwen3TTSEngine:
         self._base_loading = False
         self._speaker = speaker
         self._active = 0
+        self._waiting = 0
         self._lock = asyncio.Semaphore(1)  # CPU: serializa inferências
         self._base_lock = asyncio.Semaphore(1)
 
@@ -141,19 +142,44 @@ class Qwen3TTSEngine:
     # Interface pública TTSEngine
     # ------------------------------------------------------------------
 
+    async def _executar(
+        self,
+        lock: asyncio.Semaphore,
+        fn: Callable[..., tuple[list[np.ndarray], int]],
+        *args: object,
+    ) -> tuple[list[np.ndarray], int]:
+        self._waiting += 1
+        try:
+            await lock.acquire()
+        finally:
+            self._waiting -= 1
+        self._active += 1
+        fut = asyncio.ensure_future(asyncio.to_thread(fn, *args))
+
+        # A thread não para com o cancelamento: o lock só é liberado quando ela termina,
+        # senão duas inferências rodariam ao mesmo tempo no mesmo modelo.
+        def _liberar(f: asyncio.Future[tuple[list[np.ndarray], int]]) -> None:
+            self._active -= 1
+            lock.release()
+            if not f.cancelled():
+                f.exception()
+
+        fut.add_done_callback(_liberar)
+        return await asyncio.shield(fut)
+
     async def synthesize(self, text: str, voice: Voice, opts: SynthOptions) -> Audio:
         language = _resolve_language(voice)
 
         if voice.ref_audio and voice.ref_text:
             # Voz clonada — usa modelo Base
-            async with self._base_lock:
-                self._active += 1
-                try:
-                    wavs, sr = await asyncio.to_thread(
-                        self._infer_clone, text, language, voice.ref_audio, voice.ref_text
-                    )
-                finally:
-                    self._active -= 1
+            wavs, sr = await self._executar(
+                self._base_lock,
+                self._infer_clone,
+                text,
+                language,
+                voice.ref_audio,
+                voice.ref_text,
+            )
         else:
             # Voz preset — usa modelo CustomVoice
             speaker = self._speaker_for(voice)
@@ -162,14 +188,9 @@ class Qwen3TTSEngine:
                 if (opts.style and opts.style.lower() not in ("", "neutro"))
                 else (voice.style_prompt or None)
             )
-            async with self._lock:
-                self._active += 1
-                try:
-                    wavs, sr = await asyncio.to_thread(
-                        self._infer_preset, text, speaker, language, instruct
-                    )
-                finally:
-                    self._active -= 1
+            wavs, sr = await self._executar(
+                self._lock, self._infer_preset, text, speaker, language, instruct
+            )
 
         pcm = _pcm_from_wav(wavs[0])
         duration_ms = len(wavs[0]) / sr * 1000
@@ -198,4 +219,5 @@ class Qwen3TTSEngine:
             await asyncio.sleep(0)
 
     def capacity(self) -> Capacity:
-        return Capacity(active_streams=self._active, queued=0, rtf_recent=None)
+        # Inferência é serializada: quem espera o lock é fila, base do controle de admissão.
+        return Capacity(active_streams=self._active, queued=self._waiting, rtf_recent=None)

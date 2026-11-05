@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import datetime
 from typing import Literal
@@ -196,6 +197,15 @@ class PronunciationEntryCreate(BaseModel):
     term: str = Field(min_length=1, max_length=255)
     expansion: str = Field(min_length=1, max_length=1024)
     is_regex: bool = False
+
+    @model_validator(mode="after")
+    def _regex_valida(self) -> PronunciationEntryCreate:
+        if self.is_regex:
+            try:
+                re.compile(self.term)
+            except re.error as exc:
+                raise ValueError(f"Regex inválida: {exc}") from exc
+        return self
 
 
 class PronunciationEntryResponse(BaseModel):

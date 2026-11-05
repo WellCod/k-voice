@@ -122,3 +122,33 @@ async def test_criar_voice(db: AsyncSession) -> None:
 async def test_ping_db(db: AsyncSession) -> None:
     result = await db.execute(text("SELECT 1"))
     assert result.scalar() == 1
+
+
+async def test_autenticacao_compat_e_mcp_carrega_cliente(engine: Any, db: AsyncSession) -> None:
+    from kvoice.compat.elevenlabs import _autenticar as autenticar_compat
+    from kvoice.db.session import init_db
+    from kvoice.mcp.server import _validar_token
+
+    client = Client(name="Cliente Compat")
+    db.add(client)
+    await db.flush()
+    raw = gerar_token()
+    db.add(
+        ApiToken(
+            client_id=client.id,
+            name="compat",
+            token_hash=hash_token(raw),
+            scopes="tts:batch",
+        )
+    )
+    await db.commit()
+
+    init_db(engine.url.render_as_string(hide_password=False))
+
+    c, t = await autenticar_compat(raw, None)
+    assert c.id == client.id
+    assert t.has_scope("tts:batch")
+
+    resultado = await _validar_token(raw)
+    assert resultado is not None
+    assert resultado[0].id == client.id

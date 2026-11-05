@@ -11,6 +11,7 @@ Sem streaming de áudio — ADR-0006.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Any
 
@@ -18,14 +19,14 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.shared.exceptions import MCPError
 from sqlalchemy import select
 
-from kvoice.api.auth import hash_token
+from kvoice.api.deps import autenticar_token
 from kvoice.api.routing import decide_engine
 from kvoice.audio import encode as encode_audio
 from kvoice.audio import pcm_duration_ms
 from kvoice.db.models import ApiToken, Client
 from kvoice.db.models import Voice as DbVoice
 from kvoice.db.session import session_factory
-from kvoice.engine.types import SynthOptions, Voice
+from kvoice.engine.types import SynthOptions
 from kvoice.normalize import apply_dict, load_dict, normalize
 from kvoice.storage import get_storage
 
@@ -40,21 +41,7 @@ _EXT: dict[str, str] = {"ogg_opus": "ogg", "mp3_44100": "mp3", "wav_24000": "wav
 
 
 async def _validar_token(raw: str) -> tuple[Client, ApiToken] | None:
-    token_hash = hash_token(raw)
-    async with session_factory()() as db:
-        result = await db.execute(
-            select(ApiToken)
-            .join(Client, ApiToken.client_id == Client.id)
-            .where(
-                ApiToken.token_hash == token_hash,
-                ApiToken.is_active.is_(True),
-                Client.is_active.is_(True),
-            )
-        )
-        record = result.scalar_one_or_none()
-        if record is None:
-            return None
-        return record.client, record
+    return await autenticar_token(raw)
 
 
 async def _buscar_voz(voice_id: str) -> DbVoice | None:
@@ -120,6 +107,8 @@ async def synthesize(
     if format not in _EXT:
         formatos = "ogg_opus, mp3_44100, wav_24000"
         raise MCPError(-32602, f"Formato inválido: {format!r}. Use {formatos}.")
+    if not 60 <= url_ttl_s <= 604_800:
+        raise MCPError(-32602, "url_ttl_s deve estar entre 60 e 604800.")
 
     client, _token = await _auth(ctx, "tts:batch")
 
@@ -131,17 +120,14 @@ async def synthesize(
     if decision is None:
         raise MCPError(-32000, "Motor de síntese indisponível.")
 
-    voice = Voice(
-        id=decision.effective_voice_id,
-        name=orm_voice.name,
-        language=orm_voice.language,
-        style_prompt=orm_voice.style_prompt,
-    )
+    voice = decision.voz(orm_voice)
     pron = await load_dict(client.id)
     normalized = normalize(apply_dict(text, pron))
     audio = await decision.engine.synthesize(normalized, voice, SynthOptions(format=format))
 
-    encoded, content_type = encode_audio(audio.data, audio.sample_rate, format)
+    encoded, content_type = await asyncio.to_thread(
+        encode_audio, audio.data, audio.sample_rate, format
+    )
     duration_ms = round(pcm_duration_ms(audio.data, audio.sample_rate), 1)
     request_id = uuid.uuid4()
 

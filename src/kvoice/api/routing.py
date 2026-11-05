@@ -10,9 +10,10 @@ from dataclasses import dataclass
 from sqlalchemy import select
 
 from kvoice.db.models import RoutingMode, RoutingRule
+from kvoice.db.models import Voice as DbVoice
 from kvoice.db.session import session_factory
 from kvoice.engine.registry import _ADMISSION_MAX_QUEUE, get_engine
-from kvoice.engine.types import TTSEngine
+from kvoice.engine.types import TTSEngine, Voice
 
 
 @dataclass
@@ -22,6 +23,18 @@ class RoutingDecision:
     effective_voice_id: str
     is_fallback: bool
     fallback_reason: str | None
+
+    def voz(self, orm_voice: DbVoice) -> Voice:
+        """Monta a voz do motor; clonagem depende de ref_audio e ref_text."""
+        return Voice(
+            id=self.effective_voice_id,
+            name=orm_voice.name,
+            language=orm_voice.language,
+            model_id=orm_voice.model_id,
+            ref_audio=orm_voice.ref_audio_key,
+            ref_text=orm_voice.ref_text,
+            style_prompt=orm_voice.style_prompt,
+        )
 
 
 async def _buscar_regra(client_id: uuid.UUID) -> RoutingRule | None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import re
 import time
 import uuid
@@ -11,12 +12,9 @@ from datetime import UTC, datetime, timedelta
 from fastapi import APIRouter, HTTPException, Query, Response, WebSocket, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 from starlette.websockets import WebSocketDisconnect
 
-from kvoice.api.auth import hash_token
-from kvoice.api.deps import AuthDep, DbSession
+from kvoice.api.deps import AuthDep, DbSession, autenticar_token
 from kvoice.api.metrics import (
     streams_active,
     streams_cancelled,
@@ -33,14 +31,17 @@ from kvoice.audio import pcm_duration_ms
 from kvoice.db.models import ApiToken, BatchJob, BatchStatus, Client
 from kvoice.db.models import Voice as DbVoice
 from kvoice.db.session import session_factory
-from kvoice.engine.types import Audio, SynthOptions, Voice
+from kvoice.engine.types import Audio, SynthOptions
 from kvoice.normalize import apply_dict, load_dict, normalize, normalize_incremental
 from kvoice.storage import get_storage
 
 router = APIRouter(tags=["tts"])
+_log = logging.getLogger(__name__)
+# Referência forte às tarefas de gravação de uso para não serem coletadas antes de terminar
+_tarefas_uso: set[asyncio.Task[None]] = set()
 
 _EXT: dict[str, str] = {"ogg_opus": "ogg", "mp3_44100": "mp3", "wav_24000": "wav"}
-_FLUSH = "\x00"
+_FLUSH = object()
 _MAX_CHARS_SEGMENTO = 600
 # Preferência: dividir apenas em ponto final para preservar contexto de perguntas/exclamações
 _RE_FRASE_PONTO = re.compile(r"(?<=[.])\s+")
@@ -72,22 +73,7 @@ def _split_sentencas(text: str) -> list[str]:
 
 
 async def _autenticar_ws(token: str) -> tuple[Client, ApiToken] | None:
-    token_hash = hash_token(token)
-    async with session_factory()() as db:
-        result = await db.execute(
-            select(ApiToken)
-            .join(Client, ApiToken.client_id == Client.id)
-            .where(
-                ApiToken.token_hash == token_hash,
-                ApiToken.is_active.is_(True),
-                Client.is_active.is_(True),
-            )
-            .options(selectinload(ApiToken.client))
-        )
-        record = result.scalar_one_or_none()
-        if record is None:
-            return None
-        return record.client, record
+    return await autenticar_token(token)
 
 
 async def _buscar_voz(voice_id: str) -> DbVoice | None:
@@ -127,7 +113,7 @@ async def _gravar_uso(
                 fallback_reason=fallback_reason,
             )
     except Exception:
-        pass
+        _log.exception("falha ao gravar uso (request_id=%s)", request_id)
 
 
 @router.post("/v1/tts", response_model=None)
@@ -150,15 +136,7 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
             detail="Motor indisponível",
         )
 
-    voice = Voice(
-        id=decision.effective_voice_id,
-        name=orm_voice.name,
-        language=orm_voice.language,
-        model_id=orm_voice.model_id,
-        ref_audio=orm_voice.ref_audio_key,
-        ref_text=orm_voice.ref_text,
-        style_prompt=orm_voice.style_prompt,
-    )
+    voice = decision.voz(orm_voice)
     opts = SynthOptions(format=body.format, style=body.style_prompt or "neutro")
     pron = await load_dict(client.id)
     normalized = normalize(apply_dict(body.text, pron))
@@ -183,7 +161,9 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
             ttfa_ms=primeiro_ttfa,
         )
 
-    encoded, content_type = encode_audio(audio.data, audio.sample_rate, body.format)
+    encoded, content_type = await asyncio.to_thread(
+        encode_audio, audio.data, audio.sample_rate, body.format
+    )
     duration_ms = round(pcm_duration_ms(audio.data, audio.sample_rate), 1)
     request_id = uuid.uuid4()
 
@@ -307,15 +287,7 @@ async def _executar_com_engine(
     decision: RoutingDecision,
 ) -> None:
     engine = decision.engine
-    voice = Voice(
-        id=decision.effective_voice_id,
-        name=orm_voice.name,
-        language=orm_voice.language,
-        model_id=orm_voice.model_id,
-        ref_audio=orm_voice.ref_audio_key,
-        ref_text=orm_voice.ref_text,
-        style_prompt=orm_voice.style_prompt,
-    )
+    voice = decision.voz(orm_voice)
     opts = SynthOptions(
         speed=start.options.speed,
         style=start.options.style,
@@ -324,7 +296,7 @@ async def _executar_com_engine(
     request_id = uuid.uuid4()
 
     send_queue: asyncio.Queue[bytes | dict[str, object] | None] = asyncio.Queue()
-    text_queue: asyncio.Queue[str | None] = asyncio.Queue()
+    text_queue: asyncio.Queue[str | object | None] = asyncio.Queue()
     cancelled = asyncio.Event()
 
     await send_queue.put(
@@ -360,6 +332,7 @@ async def _executar_com_engine(
                         yield normed
                 await send_queue.put({"type": "flushed"})
                 continue
+            assert isinstance(item, str)
             ready, pending = normalize_incremental(pending + item)
             if ready:
                 yield ready
@@ -377,8 +350,10 @@ async def _executar_com_engine(
                 total_audio_ms += chunk.duration_ms
         except asyncio.CancelledError:
             pass
-        except Exception as exc:
-            await send_queue.put({"type": "error", "code": "engine", "detail": str(exc)})
+        except Exception:
+            _log.exception("falha no motor %s (request_id=%s)", engine.name, request_id)
+            streams_errors.labels(code="engine").inc()
+            await send_queue.put({"type": "error", "code": "engine"})
 
     async def _sender() -> None:
         while True:
@@ -386,6 +361,8 @@ async def _executar_com_engine(
             if item is None:
                 break
             if isinstance(item, (bytes, bytearray)):
+                if cancelled.is_set():
+                    continue
                 await websocket.send_bytes(item)
             else:
                 await websocket.send_json(item)
@@ -425,12 +402,11 @@ async def _executar_com_engine(
         cancelled_by_client = True
 
     finally:
+        # Cancelamento não espera a síntese em curso terminar (gate: < 50 ms).
+        if cancelled.is_set():
+            audio_task.cancel()
         with contextlib.suppress(asyncio.CancelledError, Exception):
             await audio_task
-        if not audio_task.done():
-            audio_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await audio_task
         await send_queue.put(None)
         with contextlib.suppress(Exception):
             await sender_task
@@ -447,7 +423,7 @@ async def _executar_com_engine(
             }
         )
         total_ms = (time.monotonic() - t0) * 1000
-        asyncio.create_task(
+        task = asyncio.create_task(
             _gravar_uso(
                 request_id=request_id,
                 client_id=client.id,
@@ -461,6 +437,8 @@ async def _executar_com_engine(
                 fallback_reason=decision.fallback_reason,
             )
         )
+        _tarefas_uso.add(task)
+        task.add_done_callback(_tarefas_uso.discard)
     else:
         streams_cancelled.inc()
         with contextlib.suppress(Exception):

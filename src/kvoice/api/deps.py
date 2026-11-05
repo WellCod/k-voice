@@ -5,13 +5,13 @@ from collections.abc import AsyncGenerator
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from kvoice.api.auth import hash_token
 from kvoice.db.models import ApiToken, Client, UsageEvent
-from kvoice.db.session import get_session
+from kvoice.db.session import get_session, session_factory
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -22,6 +22,28 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 
+def _consulta_token(raw: str) -> Select[ApiToken]:
+    return (
+        select(ApiToken)
+        .join(Client, ApiToken.client_id == Client.id)
+        .where(
+            ApiToken.token_hash == hash_token(raw),
+            ApiToken.is_active.is_(True),
+            Client.is_active.is_(True),
+        )
+        .options(selectinload(ApiToken.client))
+    )
+
+
+async def autenticar_token(raw: str) -> tuple[Client, ApiToken] | None:
+    """Valida o token fora de uma dependência do FastAPI (WebSocket, compat, MCP)."""
+    async with session_factory()() as db:
+        record = (await db.execute(_consulta_token(raw))).scalar_one_or_none()
+    if record is None:
+        return None
+    return record.client, record
+
+
 async def _autenticar(
     authorization: Annotated[str | None, Header()] = None,
     db: AsyncSession = Depends(get_db),  # noqa: B008
@@ -29,18 +51,7 @@ async def _autenticar(
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token ausente")
     raw = authorization.removeprefix("Bearer ")
-    token_hash = hash_token(raw)
-    result = await db.execute(
-        select(ApiToken)
-        .join(Client, ApiToken.client_id == Client.id)
-        .where(
-            ApiToken.token_hash == token_hash,
-            ApiToken.is_active.is_(True),
-            Client.is_active.is_(True),
-        )
-        .options(selectinload(ApiToken.client))
-    )
-    record = result.scalar_one_or_none()
+    record = (await db.execute(_consulta_token(raw))).scalar_one_or_none()
     if record is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
     return record.client, record

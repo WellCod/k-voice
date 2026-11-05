@@ -9,20 +9,20 @@ Mapeamento de formato via output_format query param.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Annotated
 
 from fastapi import APIRouter, Header, HTTPException, Query, status
 from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy import select
 
-from kvoice.api.auth import hash_token
+from kvoice.api.deps import autenticar_token
 from kvoice.api.routing import decide_engine
 from kvoice.audio import encode as encode_audio
 from kvoice.db.models import ApiToken, Client
 from kvoice.db.models import Voice as DbVoice
 from kvoice.db.session import session_factory
-from kvoice.engine.types import SynthOptions, Voice
+from kvoice.engine.types import SynthOptions
 from kvoice.normalize import apply_dict, load_dict, normalize
 
 router = APIRouter(prefix="/v1", tags=["compat-elevenlabs"])
@@ -65,21 +65,10 @@ async def _autenticar(xi_api_key: str | None, authorization: str | None) -> tupl
         raw = authorization[7:]
     if not raw:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Chave ausente")
-    token_hash = hash_token(raw)
-    async with session_factory()() as db:
-        result = await db.execute(
-            select(ApiToken)
-            .join(Client, ApiToken.client_id == Client.id)
-            .where(
-                ApiToken.token_hash == token_hash,
-                ApiToken.is_active.is_(True),
-                Client.is_active.is_(True),
-            )
-        )
-        record = result.scalar_one_or_none()
-    if record is None:
+    auth = await autenticar_token(raw)
+    if auth is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Chave inválida")
-    client, token = record.client, record
+    client, token = auth
     if not token.has_scope("tts:batch"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Escopo 'tts:batch' necessário"
@@ -114,14 +103,11 @@ async def text_to_speech(
     if body.voice_settings and body.voice_settings.speed is not None:
         speed = body.voice_settings.speed
 
-    voice = Voice(
-        id=decision.effective_voice_id,
-        name=orm_voice.name,
-        language=orm_voice.language,
-        style_prompt=orm_voice.style_prompt,
-    )
+    voice = decision.voz(orm_voice)
     opts = SynthOptions(format=our_format, speed=speed)
     pron = await load_dict(client.id)
     audio = await decision.engine.synthesize(normalize(apply_dict(body.text, pron)), voice, opts)
-    encoded, content_type = encode_audio(audio.data, audio.sample_rate, our_format)
+    encoded, content_type = await asyncio.to_thread(
+        encode_audio, audio.data, audio.sample_rate, our_format
+    )
     return Response(content=encoded, media_type=content_type)

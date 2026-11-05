@@ -40,6 +40,12 @@ Comparar k-voice vs ElevenLabs no mesmo período e cliente:
 
 - Capacidade por GPU = maior número de streams simultâneos com TTFA p95 ≤ 350 ms, medido no PR 4 e refeito a cada troca de modelo, versão ou GPU.
 - Manter 30% de folga sobre o pico do mês anterior.
+- Admissão: o motor serializa inferências; pedidos esperando o lock contam como fila (`queued` em `/health`). Com 8 ou mais na fila, o roteamento cai para a ElevenLabs (`fallback_reason=capacity`) ou recusa com `capacity`.
+
+## Logs
+
+- O token do WebSocket vai na query string; o filtro em `kvoice.api.app` troca o valor por `***` nos logs `uvicorn.error` e `uvicorn.access`. Proxy ou balanceador na frente precisa do mesmo cuidado.
+- Falhas do motor no streaming e na gravação de uso são registradas com `request_id`; o cliente recebe só `{"type": "error", "code": "engine"}`.
 
 ## Plantão (runbook mínimo)
 

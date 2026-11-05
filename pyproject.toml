@@ -74,4 +74,6 @@ ignore_errors = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests/api", "tests/normalize"]
+testpaths = ["tests"]
+# tests/bench depende do grupo bench, que não é instalado no CI
+addopts = "--ignore=tests/bench"

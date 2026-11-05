@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import pathlib
+import re
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -17,12 +19,33 @@ from kvoice.mcp.server import mcp
 from kvoice.settings import get_settings
 
 _STATIC = pathlib.Path(__file__).parent.parent / "static" / "demo"
+_RE_TOKEN_QUERY = re.compile(r"(token=)[^&\s\"']+")
+
+
+def _ocultar(valor: object) -> object:
+    return _RE_TOKEN_QUERY.sub(r"\g<1>***", valor) if isinstance(valor, str) else valor
+
+
+class _OcultaToken(logging.Filter):
+    """O WebSocket recebe o token na query string, que o uvicorn registra no log."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(_ocultar(a) for a in record.args)
+        if isinstance(record.msg, str):
+            record.msg = _RE_TOKEN_QUERY.sub(r"\g<1>***", record.msg)
+        return True
+
+
+def _instalar_filtro_token() -> None:
+    for nome in ("uvicorn.error", "uvicorn.access"):
+        logger = logging.getLogger(nome)
+        if not any(isinstance(f, _OcultaToken) for f in logger.filters):
+            logger.addFilter(_OcultaToken())
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    import logging
-
     log = logging.getLogger("kvoice.startup")
     settings = get_settings()
     init_db(settings.database_url)
@@ -55,6 +78,7 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 def create_app() -> FastAPI:
+    _instalar_filtro_token()
     app = FastAPI(title="k-voice", lifespan=_lifespan)
 
     app.include_router(admin.router)
