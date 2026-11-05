@@ -74,7 +74,7 @@ Requer NVIDIA Container Toolkit. TTFA p50 ~156 ms numa RTX 4090.
                                   StubEngine (testes)
 ```
 
-**Motor principal: Qwen3-TTS (Apache-2.0)** — clonagem com ~3 s de referência, suporte a pt-BR. O modelo suporta streaming, mas o pacote `qwen-tts` só devolve o áudio da frase inteira; o servidor sintetiza frase a frase enquanto o texto chega (ver [arquitetura](docs/arquitetura.md#streaming--ws-v1ttsstream)).
+**Motor principal: Qwen3-TTS (Apache-2.0)** — clonagem com ~3 s de referência, suporte a pt-BR. Em GPU NVIDIA (`QWEN3_DEVICE=cuda`) roda pelo `faster-qwen3-tts`, que gera o áudio em pedaços enquanto a frase é decodificada: o primeiro som sai antes de a frase terminar. Em CPU (desenvolvimento) sintetiza frase a frase (ver [arquitetura](docs/arquitetura.md#streaming--ws-v1ttsstream)).
 
 Toda a stack fala com a interface `TTSEngine`; trocar de modelo é escrever uma implementação nova.
 
