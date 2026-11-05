@@ -61,9 +61,15 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     settings.qwen3_model_id,
                     settings.qwen3_base_model_id,
                     settings.qwen3_speaker,
+                    settings.qwen3_device,
+                    settings.qwen3_dtype,
                 )
                 set_engine(engine)
-                log.info("Qwen3-TTS carregado (speaker=%s)", settings.qwen3_speaker)
+                log.info(
+                    "Qwen3-TTS carregado (speaker=%s, device=%s)",
+                    settings.qwen3_speaker,
+                    settings.qwen3_device,
+                )
             except Exception:
                 log.exception("Falha ao carregar Qwen3-TTS; usando engine stub")
                 from kvoice.engine.stub import StubEngine

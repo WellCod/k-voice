@@ -9,6 +9,7 @@ Cobre os cenários específicos de uma chamada VoIP:
 
 from __future__ import annotations
 
+import json
 import types
 import uuid
 from collections.abc import AsyncGenerator
@@ -213,27 +214,21 @@ def test_flush_em_fronteira_de_sentenca(
         ws.send_json({"type": "end"})
 
         # Coleta todas as mensagens até "done"
-        msgs: list[dict[str, Any]] = []
-        tipos_texto: list[str] = []
+        eventos: list[str] = []
         while True:
-            # pode chegar bytes (áudio) ou JSON
-            try:
-                chunk = ws.receive_bytes()
-                msgs.append({"_bytes": len(chunk)})
-            except Exception:
-                pass
-            try:
-                msg = ws.receive_json()
-                msgs.append(msg)
-                tipos_texto.append(msg.get("type", ""))
-                if msg.get("type") in ("done", "error"):
-                    break
-            except Exception:
+            msg = ws.receive()
+            if msg.get("bytes"):
+                eventos.append("audio")
+                continue
+            tipo = json.loads(msg["text"])["type"]
+            eventos.append(tipo)
+            if tipo in ("done", "error"):
                 break
 
-        assert "done" in tipos_texto
-        # "flushed" é enviado após processar o flush do normalizador
-        assert "flushed" in tipos_texto
+        assert eventos[-1] == "done"
+        # "flushed" chega depois do áudio da primeira sentença
+        assert "flushed" in eventos
+        assert "audio" in eventos[: eventos.index("flushed")]
 
 
 def test_multiplos_turnos_por_chamada(

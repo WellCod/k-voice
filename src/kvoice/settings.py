@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     qwen3_model_id: str = "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"
     qwen3_base_model_id: str = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
     qwen3_speaker: str = "vivian"
+    # "cpu" no notebook de dev; "cuda" ou "cuda:0" nos nós com GPU NVIDIA.
+    qwen3_device: str = "cpu"
+    # "auto": float32 em CPU, bfloat16 em CUDA.
+    qwen3_dtype: str = "auto"
 
     @property
     def sync_database_url(self) -> str:

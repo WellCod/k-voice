@@ -6,6 +6,7 @@ import logging
 import re
 import time
 import uuid
+from collections import deque
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
@@ -313,8 +314,19 @@ async def _executar_com_engine(
     total_audio_ms = 0.0
     total_chars = 0
     first_chunk = True
+    # "flushed" só sai depois do áudio do texto anterior ao flush: o motor marca em cada
+    # chunk quantos itens de texto terminaram de soar (AudioChunk.textos_concluidos).
+    entregues = 0
+    concluidos = 0
+    flushes: deque[int] = deque()
+
+    async def _liberar_flushes() -> None:
+        while flushes and flushes[0] <= concluidos:
+            flushes.popleft()
+            await send_queue.put({"type": "flushed"})
 
     async def _text_iter() -> AsyncIterator[str]:
+        nonlocal entregues
         pending = ""
         while True:
             item = await text_queue.get()
@@ -322,6 +334,7 @@ async def _executar_com_engine(
                 if pending and not cancelled.is_set():
                     normed = normalize(pending)
                     if normed:
+                        entregues += 1
                         yield normed
                 return
             if item is _FLUSH:
@@ -329,25 +342,34 @@ async def _executar_com_engine(
                     normed = normalize(pending)
                     pending = ""
                     if normed:
+                        entregues += 1
                         yield normed
-                await send_queue.put({"type": "flushed"})
+                flushes.append(entregues)
+                await _liberar_flushes()
                 continue
             assert isinstance(item, str)
             ready, pending = normalize_incremental(pending + item)
             if ready:
+                entregues += 1
                 yield ready
 
     async def _send_audio() -> None:
-        nonlocal ttfa_ms, total_audio_ms, first_chunk
+        nonlocal ttfa_ms, total_audio_ms, first_chunk, concluidos
         try:
             async for chunk in await engine.stream(_text_iter(), voice, opts):
                 if cancelled.is_set():
                     break
-                if first_chunk:
-                    ttfa_ms = (time.monotonic() - t0) * 1000
-                    first_chunk = False
-                await send_queue.put(chunk.data)
-                total_audio_ms += chunk.duration_ms
+                if chunk.data:
+                    if first_chunk:
+                        ttfa_ms = (time.monotonic() - t0) * 1000
+                        first_chunk = False
+                    await send_queue.put(chunk.data)
+                    total_audio_ms += chunk.duration_ms
+                concluidos += chunk.textos_concluidos
+                await _liberar_flushes()
+            # Motor que não marca textos_concluidos: todo o texto soou ao fim do stream.
+            concluidos = entregues
+            await _liberar_flushes()
         except asyncio.CancelledError:
             pass
         except Exception:

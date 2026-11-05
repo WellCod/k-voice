@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import AsyncIterator
 
 import numpy as np
 import pytest
@@ -75,3 +76,32 @@ async def test_cancelar_durante_inferencia_mantem_lock_ate_thread_terminar() -> 
     await engine.synthesize("oi", voz, SynthOptions())
     assert pico == 1
     assert engine.capacity().active_streams == 0
+
+
+async def test_stream_entrega_audio_por_frase_antes_do_texto_acabar() -> None:
+    engine = Qwen3TTSEngine(custom_model=None, base_model_id="x")
+    frases_sintetizadas: list[str] = []
+
+    def _infer(text: str, *_args: object) -> tuple[list[np.ndarray], int]:
+        frases_sintetizadas.append(text)
+        return [np.zeros(7_200, dtype=np.float32)], 24_000  # 300 ms
+
+    engine._infer_preset = _infer  # type: ignore[method-assign]
+    fila: asyncio.Queue[str | None] = asyncio.Queue()
+
+    async def _texto() -> AsyncIterator[str]:
+        while (item := await fila.get()) is not None:
+            yield item
+
+    await fila.put("Primeira frase.")
+    gen = await engine.stream(_texto(), Voice(id="v", name="V"), SynthOptions())
+
+    primeiro = await asyncio.wait_for(anext(gen), timeout=2)
+    assert primeiro.data
+    assert frases_sintetizadas == ["Primeira frase."]
+
+    await fila.put("Segunda frase.")
+    await fila.put(None)
+    restantes = [c async for c in gen]
+    assert frases_sintetizadas == ["Primeira frase.", "Segunda frase."]
+    assert sum(c.textos_concluidos for c in [primeiro, *restantes]) == 2

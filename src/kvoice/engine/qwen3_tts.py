@@ -7,7 +7,7 @@ from collections.abc import AsyncGenerator, AsyncIterator, Callable
 
 import numpy as np
 
-from kvoice.engine.types import Audio, AudioChunk, Capacity, SynthOptions, Voice
+from kvoice.engine.types import Audio, AudioChunk, Capacity, SynthOptions, Voice, fatiar_pcm
 
 _SAMPLE_RATE = 24_000
 _CHUNK_SAMPLES = 4_800  # 200 ms a 24 kHz
@@ -42,6 +42,17 @@ def _pcm_from_wav(wav: np.ndarray) -> bytes:
     return (wav.flatten() * 32767).clip(-32767, 32767).astype(np.int16).tobytes()
 
 
+def _kwargs_modelo(device: str, dtype: str) -> dict[str, object]:
+    """Argumentos repassados ao AutoModel.from_pretrained pelo qwen-tts."""
+    import torch
+
+    if device.startswith("cuda") and not torch.cuda.is_available():
+        raise RuntimeError(f"QWEN3_DEVICE={device}, mas o torch instalado não enxerga CUDA")
+    if dtype == "auto":
+        dtype = "float32" if device == "cpu" else "bfloat16"
+    return {"device_map": device, "dtype": getattr(torch, dtype)}
+
+
 def _resolve_language(voice: Voice) -> str:
     return _LANGUAGE_MAP.get(voice.language, _DEFAULT_LANGUAGE)
 
@@ -57,8 +68,12 @@ class Qwen3TTSEngine:
         custom_model: object,
         base_model_id: str,
         speaker: str = _DEFAULT_SPEAKER,
+        device: str = "cpu",
+        dtype: str = "auto",
     ) -> None:
         self._custom_model = custom_model
+        self._device = device
+        self._dtype = dtype
         self._base_model_id = base_model_id
         self._base_model: object | None = None
         self._base_loading = False
@@ -74,28 +89,22 @@ class Qwen3TTSEngine:
         custom_model_id: str,
         base_model_id: str,
         speaker: str = _DEFAULT_SPEAKER,
+        device: str = "cpu",
+        dtype: str = "auto",
     ) -> Qwen3TTSEngine:
-        import torch
         from qwen_tts import Qwen3TTSModel
 
-        model = Qwen3TTSModel.from_pretrained(
-            custom_model_id,
-            device_map="cpu",
-            dtype=torch.float32,
-        )
-        return cls(model, base_model_id, speaker)
+        model = Qwen3TTSModel.from_pretrained(custom_model_id, **_kwargs_modelo(device, dtype))
+        return cls(model, base_model_id, speaker, device, dtype)
 
     def _ensure_base_model(self) -> object:
         """Carrega o modelo Base na primeira chamada de clonagem (lazy)."""
         if self._base_model is not None:
             return self._base_model
-        import torch
         from qwen_tts import Qwen3TTSModel
 
         self._base_model = Qwen3TTSModel.from_pretrained(
-            self._base_model_id,
-            device_map="cpu",
-            dtype=torch.float32,
+            self._base_model_id, **_kwargs_modelo(self._device, self._dtype)
         )
         return self._base_model
 
@@ -202,21 +211,21 @@ class Qwen3TTSEngine:
         voice: Voice,
         opts: SynthOptions,
     ) -> AsyncGenerator[AudioChunk, None]:
-        full_text = ""
-        async for part in text:
-            full_text += part
-        audio = await self.synthesize(full_text, voice, opts) if full_text else None
-        return self._stream_impl(audio)
+        return self._stream_impl(text, voice, opts)
 
-    async def _stream_impl(self, audio: Audio | None) -> AsyncGenerator[AudioChunk, None]:
-        if audio is None:
-            return
-        step = _CHUNK_SAMPLES * 2  # 2 bytes por sample int16
-        for i in range(0, len(audio.data), step):
-            chunk_data = audio.data[i : i + step]
-            chunk_ms = (len(chunk_data) // 2) / _SAMPLE_RATE * 1000
-            yield AudioChunk(data=chunk_data, sample_rate=_SAMPLE_RATE, duration_ms=chunk_ms)
-            await asyncio.sleep(0)
+    async def _stream_impl(
+        self, text: AsyncIterator[str], voice: Voice, opts: SynthOptions
+    ) -> AsyncGenerator[AudioChunk, None]:
+        # O qwen-tts não gera áudio em pedaços: cada frase que o normalizador libera é
+        # sintetizada e enviada assim que fica pronta, sem esperar o texto acabar.
+        async for frase in text:
+            data = b""
+            if frase.strip():
+                audio = await self.synthesize(frase, voice, opts)
+                data = audio.data
+            for chunk in fatiar_pcm(data, _SAMPLE_RATE, _CHUNK_SAMPLES, textos_concluidos=1):
+                yield chunk
+                await asyncio.sleep(0)
 
     def capacity(self) -> Capacity:
         # Inferência é serializada: quem espera o lock é fila, base do controle de admissão.
