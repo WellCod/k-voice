@@ -15,6 +15,7 @@ from kvoice.api.routers import admin, tts, voices
 from kvoice.compat.elevenlabs import router as elevenlabs_compat
 from kvoice.db.session import init_db
 from kvoice.engine.registry import get_engine, set_engine
+from kvoice.engine.types import TTSEngine
 from kvoice.mcp.server import mcp
 from kvoice.settings import get_settings
 
@@ -54,16 +55,39 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if settings.qwen3_enabled:
             log.info("Carregando Qwen3-TTS (%s)…", settings.qwen3_model_id)
             try:
-                from kvoice.engine.qwen3_tts import Qwen3TTSEngine
+                engine: TTSEngine
+                if settings.qwen3_device.startswith("cuda"):
+                    # GPU: streaming real dentro da frase (faster-qwen3-tts, CUDA graphs)
+                    from kvoice.engine.faster_qwen3 import FasterQwen3Engine
 
-                engine = await asyncio.to_thread(
-                    Qwen3TTSEngine.load,
-                    settings.qwen3_model_id,
-                    settings.qwen3_base_model_id,
-                    settings.qwen3_speaker,
-                )
+                    engine = await asyncio.to_thread(
+                        FasterQwen3Engine.load,
+                        settings.qwen3_model_id,
+                        settings.qwen3_base_model_id,
+                        settings.qwen3_speaker,
+                        settings.qwen3_device,
+                        settings.qwen3_dtype,
+                        settings.qwen3_chunk_size,
+                    )
+                else:
+                    # CPU (dev): síntese frase a frase
+                    from kvoice.engine.qwen3_tts import Qwen3TTSEngine
+
+                    engine = await asyncio.to_thread(
+                        Qwen3TTSEngine.load,
+                        settings.qwen3_model_id,
+                        settings.qwen3_base_model_id,
+                        settings.qwen3_speaker,
+                        settings.qwen3_device,
+                        settings.qwen3_dtype,
+                    )
                 set_engine(engine)
-                log.info("Qwen3-TTS carregado (speaker=%s)", settings.qwen3_speaker)
+                log.info(
+                    "Qwen3-TTS carregado (%s, speaker=%s, device=%s)",
+                    type(engine).__name__,
+                    settings.qwen3_speaker,
+                    settings.qwen3_device,
+                )
             except Exception:
                 log.exception("Falha ao carregar Qwen3-TTS; usando engine stub")
                 from kvoice.engine.stub import StubEngine

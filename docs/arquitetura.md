@@ -47,7 +47,11 @@ class TTSEngine(Protocol):
     def capacity(self) -> Capacity: ...  # streams ativos, fila, RTF recente
 ```
 
-- Implementações: `QwenTTSEngine` (principal), `ChatterboxEngine` (opcional, avaliação), `ElevenLabsEngine` (proxy HTTP/WebSocket, usado no fallback e na comparação).
+- Implementações:
+  - `FasterQwen3Engine` (principal, GPU NVIDIA): `faster-qwen3-tts` com CUDA graphs. Cada frase sai em pedaços de ~`QWEN3_CHUNK_SIZE`/12 s enquanto é gerada.
+  - `Qwen3TTSEngine` (CPU, desenvolvimento): mesmo modelo pelo módulo `qwen_tts`, que só devolve a frase inteira; sintetiza frase a frase.
+  - `ElevenLabsEngine` (fallback e comparação), `StubEngine` (testes).
+  - O servidor escolhe pelo `QWEN3_DEVICE`: `cuda*` usa o `FasterQwen3Engine`, qualquer outro o `Qwen3TTSEngine`.
 - Batching contínuo entre streams concorrentes na mesma GPU. É isso que define quantas ligações cabem por GPU; medir antes de escolher a técnica (CUDA graphs, vLLM ou o runtime do próprio modelo, o que a doc do modelo suportar na versão usada).
 - Controle de admissão: se a fila projetar TTFA acima do orçamento, recusa na hora com `503 capacity` para o roteador cair na ElevenLabs em vez de atrasar a fala.
 
@@ -83,7 +87,9 @@ Servidor → cliente:
 - binário: PCM 16-bit little-endian mono no `format` pedido, em pedaços de 20–40 ms;
 - JSON: `{"type":"started","request_id":"...","engine":"kvoice","sample_rate":24000}`, `{"type":"flushed"}`, `{"type":"done","ttfa_ms":142,"audio_ms":2380}`, `{"type":"error","code":"capacity"}`.
 
-`flush` força gerar o que já chegou (fim de frase do LLM). `cancel` interrompe e descarta o que está na fila (barge-in). Formatos: `pcm_24000` (padrão LiveKit), `pcm_16000`, `pcm_48000`, `ulaw_8000`.
+`flush` força gerar o que já chegou (fim de frase do LLM). `flushed` só é enviado depois do último áudio do texto anterior ao flush: o motor marca em cada `AudioChunk` quantos itens de texto terminaram de soar (`textos_concluidos`), e o plugin do LiveKit fecha o segmento nesse ponto.
+
+Granularidade: o normalizador libera texto em fim de frase (`.`, `!`, `?` seguidos de espaço) ou no `flush`. Cada trecho liberado vai para o motor na hora, sem esperar o `end`. Em GPU, o `FasterQwen3Engine` envia o primeiro pedaço da frase antes de terminar de gerá-la, então o TTFA é o tempo do primeiro pedaço. Em CPU, o TTFA é o tempo de sintetizar a primeira frase inteira. Ao sair do loop (cancelamento ou fim), o servidor fecha o gerador do motor, que para de puxar pedaços na hora; o lock do modelo só é liberado quando a thread de inferência termina. `cancel` interrompe e descarta o que está na fila (barge-in). Formatos: `pcm_24000` (padrão LiveKit), `pcm_16000`, `pcm_48000`, `ulaw_8000`.
 
 ### Lote — `POST /v1/tts`
 

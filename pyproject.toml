@@ -15,7 +15,10 @@ dependencies = [
     "elevenlabs>=2.0",
     "boto3>=1.35",
     "mcp>=1.0",
-    "qwen-tts>=0.1.1",
+    "faster-qwen3-tts==0.5.4",
+    # qwen_tts (via qwen-tts-hf) só carrega o modelo até a 5.16: a 5.17 removeu
+    # MimiConfig.rope_theta e a 5.21 transformou MimiModel.upsample em property
+    "transformers>=5.15.1,<5.17",
 ]
 
 [tool.uv]
@@ -65,7 +68,7 @@ python_version = "3.12"
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["livekit.*", "websockets.*", "elevenlabs.*", "boto3", "boto3.*", "botocore", "botocore.*", "mcp", "mcp.*", "qwen_tts", "qwen_tts.*"]
+module = ["livekit.*", "websockets.*", "elevenlabs.*", "boto3", "boto3.*", "botocore", "botocore.*", "mcp", "mcp.*", "qwen_tts", "qwen_tts.*", "faster_qwen3_tts", "faster_qwen3_tts.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

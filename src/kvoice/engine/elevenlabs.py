@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator
 
-from kvoice.engine.types import Audio, AudioChunk, Capacity, SynthOptions, Voice
+from kvoice.engine.types import Audio, AudioChunk, Capacity, SynthOptions, Voice, fatiar_pcm
 
 _SAMPLE_RATE = 24_000
 _CHUNK_SAMPLES = 4_800  # 200 ms a 24 kHz
@@ -43,34 +43,27 @@ class ElevenLabsEngine:
         voice: Voice,
         opts: SynthOptions,
     ) -> AsyncGenerator[AudioChunk, None]:
-        parts: list[str] = []
-        async for t in text:
-            parts.append(t)
-        full_text = "".join(parts)
-        return self._stream_impl(full_text, voice)
+        return self._stream_impl(text, voice)
 
     async def _stream_impl(
         self,
-        text: str,
+        text: AsyncIterator[str],
         voice: Voice,
     ) -> AsyncGenerator[AudioChunk, None]:
-        if not text.strip():
-            return
-
-        self._active += 1
-        try:
-            loop = asyncio.get_running_loop()
-            audio_bytes = await loop.run_in_executor(None, self._convert_sync, voice.id, text)
-        finally:
-            self._active -= 1
-
-        chunk_bytes = _CHUNK_SAMPLES * 2  # 16-bit mono
-        offset = 0
-        while offset < len(audio_bytes):
-            chunk = audio_bytes[offset : offset + chunk_bytes]
-            offset += chunk_bytes
-            duration_ms = (len(chunk) // 2) / _SAMPLE_RATE * 1000
-            yield AudioChunk(data=chunk, sample_rate=_SAMPLE_RATE, duration_ms=duration_ms)
+        # Uma requisição por frase liberada pelo normalizador, sem esperar o texto acabar.
+        async for frase in text:
+            audio_bytes = b""
+            if frase.strip():
+                self._active += 1
+                try:
+                    loop = asyncio.get_running_loop()
+                    audio_bytes = await loop.run_in_executor(
+                        None, self._convert_sync, voice.id, frase
+                    )
+                finally:
+                    self._active -= 1
+            for chunk in fatiar_pcm(audio_bytes, _SAMPLE_RATE, _CHUNK_SAMPLES, 1):
+                yield chunk
 
     async def synthesize(
         self,

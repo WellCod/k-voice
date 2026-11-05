@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     qwen3_model_id: str = "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"
     qwen3_base_model_id: str = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
     qwen3_speaker: str = "vivian"
+    # "cpu" no notebook de dev; "cuda" ou "cuda:0" nos nós com GPU NVIDIA.
+    qwen3_device: str = "cpu"
+    # "auto": float32 em CPU, bfloat16 em CUDA.
+    qwen3_dtype: str = "auto"
+    # Passos do codec por pedaço no streaming em GPU (~chunk_size/12 s de áudio).
+    # Menor = primeiro som mais cedo e mais overhead de decodificação.
+    qwen3_chunk_size: int = 8
 
     @property
     def sync_database_url(self) -> str:
