@@ -33,7 +33,13 @@ from kvoice.db.models import ApiToken, BatchJob, BatchStatus, Client
 from kvoice.db.models import Voice as DbVoice
 from kvoice.db.session import session_factory
 from kvoice.engine.types import Audio, SynthOptions
-from kvoice.normalize import apply_dict, load_dict, normalize, normalize_incremental
+from kvoice.normalize import (
+    PronEntry,
+    apply_dict,
+    load_dict,
+    normalize,
+    normalize_incremental,
+)
 from kvoice.storage import get_storage
 
 router = APIRouter(tags=["tts"])
@@ -277,7 +283,9 @@ async def _executar_stream(
         await websocket.close(code=1013)
         return
 
-    await _executar_com_engine(websocket, client, start, orm_voice, decision)
+    # Uma consulta no início da fala, fora do caminho crítico do áudio.
+    pron = await load_dict(client.id)
+    await _executar_com_engine(websocket, client, start, orm_voice, decision, pron)
 
 
 async def _executar_com_engine(
@@ -286,6 +294,7 @@ async def _executar_com_engine(
     start: StartMsg,
     orm_voice: DbVoice,
     decision: RoutingDecision,
+    pron: list[PronEntry],
 ) -> None:
     engine = decision.engine
     voice = decision.voz(orm_voice)
@@ -332,14 +341,14 @@ async def _executar_com_engine(
             item = await text_queue.get()
             if item is None:
                 if pending and not cancelled.is_set():
-                    normed = normalize(pending)
+                    normed = normalize(apply_dict(pending, pron))
                     if normed:
                         entregues += 1
                         yield normed
                 return
             if item is _FLUSH:
                 if pending:
-                    normed = normalize(pending)
+                    normed = normalize(apply_dict(pending, pron))
                     pending = ""
                     if normed:
                         entregues += 1
@@ -348,7 +357,9 @@ async def _executar_com_engine(
                 await _liberar_flushes()
                 continue
             assert isinstance(item, str)
-            ready, pending = normalize_incremental(pending + item)
+            ready, pending = normalize_incremental(
+                pending + item, pre=lambda t: apply_dict(t, pron)
+            )
             if ready:
                 entregues += 1
                 yield ready

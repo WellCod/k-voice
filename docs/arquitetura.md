@@ -58,6 +58,7 @@ class TTSEngine(Protocol):
 ### 3. Normalizador pt-BR (`kvoice.normalize`)
 - Puro Python, determinístico, sem rede. Regras + dicionário por cliente.
 - Recebe texto incremental: só normaliza até o último limite seguro (fim de palavra/número), segurando o resto até chegar mais texto. Sem isso, "R$ 1.2" seria lido antes de virar "R$ 1.234,50".
+- O dicionário do cliente vale nos três caminhos (lote, compat/MCP e streaming). No streaming é carregado uma vez no início da fala e aplicado só às frases completas, então um termo partido entre dois pedaços do LLM ainda casa.
 - Testado por tabela (`tests/normalize/casos.yaml`).
 
 ### 4. Plugin LiveKit (`livekit-plugins-kvoice`)

@@ -528,3 +528,48 @@ def test_ws_flushed_vem_depois_do_audio_e_antes_do_end(
         ws.send_json({"type": "end"})
         while (msg := ws.receive()).get("bytes") or json.loads(msg["text"])["type"] != "done":
             pass
+
+
+class _EngineQueGuardaTexto(_FakeEngine):
+    def __init__(self) -> None:
+        self.textos: list[str] = []
+
+    async def stream(
+        self, text: Any, voice: Voice, opts: SynthOptions
+    ) -> AsyncGenerator[AudioChunk, None]:
+        async def _gen() -> AsyncGenerator[AudioChunk, None]:
+            async for t in text:
+                self.textos.append(t)
+                yield AudioChunk(b"\x00" * 960, 24000, 20.0, textos_concluidos=1)
+
+        return _gen()
+
+
+def test_ws_aplica_dicionario_do_cliente_mesmo_com_termo_partido(
+    fake_client: Any, fake_token: Any, fake_voice: Any, _dicionario_vazio: AsyncMock
+) -> None:
+    eng = _EngineQueGuardaTexto()
+    set_engine(eng)  # type: ignore[arg-type]
+    _dicionario_vazio.return_value = [("Klubi", "clúbi", False)]
+    app = _make_app()
+    with (
+        _auth_patch(fake_client, fake_token),
+        _voice_patch(fake_voice),
+        _routing_patch(_kvoice_decision(eng)),  # type: ignore[arg-type]
+        _uso_patch(),
+        TestClient(app) as client,
+        client.websocket_connect("/v1/tts/stream?token=tok") as ws,
+    ):
+        ws.send_json({"type": "start", "voice_id": "v_fake"})
+        ws.receive_json()
+        # "Klubi" chega partido entre dois pedaços, como sai de um LLM
+        ws.send_json({"type": "text", "text": "Aqui é da Klu"})
+        ws.send_json({"type": "text", "text": "bi. Tudo bem com a Klubi?"})
+        ws.send_json({"type": "end"})
+        while (msg := ws.receive()).get("bytes") or json.loads(msg["text"])["type"] != "done":
+            pass
+
+    _dicionario_vazio.assert_awaited_once_with(fake_client.id)
+    texto = " ".join(eng.textos)
+    assert "Klubi" not in texto
+    assert texto.count("clúbi") == 2
