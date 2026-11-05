@@ -135,7 +135,7 @@ def _mock_storage() -> Any:
 # ---------------------------------------------------------------------------
 
 
-def test_lote_bytes_kvoice() -> None:
+def test_lote_bytes_kvoice(_uso: AsyncMock) -> None:
     """delivery=bytes — áudio retornado diretamente no corpo."""
     fc = _fake_client()
     ft = _fake_token_batch()
@@ -159,6 +159,11 @@ def test_lote_bytes_kvoice() -> None:
     assert resp.headers["content-type"] == _CONTENT_TYPE
     assert "x-request-id" in resp.headers
     assert "x-duration-ms" in resp.headers
+    _uso.assert_awaited_once()
+    uso = _uso.await_args.kwargs
+    assert str(uso["request_id"]) == resp.headers["x-request-id"]
+    assert uso["client_id"] == fc.id
+    assert uso["characters"] == len("Olá, tudo bem?")
 
 
 def test_lote_url_kvoice() -> None:
