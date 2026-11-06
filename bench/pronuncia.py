@@ -50,6 +50,38 @@ _FRASES_YAML = ROOT / "bench" / "frases.yaml"
 _SAIDA = ROOT / "bench" / "outputs" / "pronuncia"
 _RE_NAO_PALAVRA = re.compile(r"[^\w\s]")
 _RE_DIGITOS_LONGOS = re.compile(r"\d{10,}")
+# Documento, telefone ou CEP escrito com qualquer agrupamento ("123-456-789-09",
+# "11-3456-7890", "013-10100", "12.345.678/0001-99"). Vírgula seguida de dígito é
+# decimal (valor em reais) e encerra a cadeia; vírgula de pontuação não.
+_RE_CADEIA_DIGITOS = re.compile(r"(?<!\d)(?<!\d,)\d+(?:[-. /]\d+)+(?!\d)(?!,\d)")
+_MIN_DIGITOS_CADEIA = 7
+# Data com barra tem no máximo 8 dígitos (25/12/2026); CNPJ tem 14.
+_MIN_DIGITOS_COM_BARRA = 9
+
+
+def _falar_digitos(digitos: str, telefone: bool) -> str:
+    """Telefone com DDD fala o DDD como número, como o normalizador do servidor."""
+    from kvoice.normalize._num import digitos_separados, numero_para_palavras
+
+    if telefone:
+        return f" {numero_para_palavras(int(digitos[:2]))} {digitos_separados(digitos[2:])} "
+    return f" {digitos_separados(digitos)} "
+
+
+def _parece_telefone(grupos: list[str]) -> bool:
+    digitos = "".join(grupos)
+    if len(digitos) not in (10, 11) or digitos[0] == "0":
+        return False
+    return len(grupos[0]) == 2 if len(grupos) > 1 else digitos[2] == "9"
+
+
+def _digitos_da_cadeia(m: re.Match[str]) -> str:
+    grupos = re.split(r"[-. /]", m.group(0))
+    total = sum(len(g) for g in grupos)
+    minimo = _MIN_DIGITOS_COM_BARRA if "/" in m.group(0) else _MIN_DIGITOS_CADEIA
+    if total < minimo:
+        return m.group(0)
+    return _falar_digitos("".join(grupos), _parece_telefone(grupos))
 
 
 # -----------------------------------------------------------------------
@@ -60,13 +92,17 @@ _RE_DIGITOS_LONGOS = re.compile(r"\d{10,}")
 def canonico(texto: str) -> str:
     """Normaliza como o servidor e reduz a palavras sem acento nem pontuação.
 
-    O ASR às vezes junta um documento numa sequência só ("23456780000199"). Essas
-    sequências viram dígitos falados antes de normalizar, que é como se falam.
+    Documento, telefone e CEP se falam dígito a dígito, mas o ASR os escreve com
+    qualquer agrupamento ("123-456-789-09", "23456780000199"). Antes de normalizar,
+    essas cadeias viram dígitos falados nos dois lados, e a comparação mede se os
+    dígitos estão certos, não como o ASR os pontuou.
     """
     from kvoice.normalize import normalize
-    from kvoice.normalize._num import digitos_separados
 
-    t = _RE_DIGITOS_LONGOS.sub(lambda m: f" {digitos_separados(m.group(0))} ", texto)
+    t = _RE_CADEIA_DIGITOS.sub(_digitos_da_cadeia, texto)
+    t = _RE_DIGITOS_LONGOS.sub(
+        lambda m: _falar_digitos(m.group(0), _parece_telefone([m.group(0)])), t
+    )
     t = normalize(t).lower()
     t = unicodedata.normalize("NFKD", t)
     t = "".join(c for c in t if not unicodedata.combining(c))
@@ -247,6 +283,57 @@ def _imprimir(resumo: dict[str, Any]) -> None:
             print(f"  {'':<26} ouviu: {p['transcrito']}")
 
 
+def _comparar(fid: str, categoria: str, texto: str, transcrito: str, **extra: float) -> Resultado:
+    ref, hip = canonico(texto).split(), canonico(transcrito).split()
+    return Resultado(
+        frase_id=fid,
+        categoria=categoria,
+        texto=texto,
+        esperado=" ".join(ref),
+        transcrito=transcrito,
+        wer=taxa_erro(ref, hip),
+        cer=taxa_erro(list(" ".join(ref)), list(" ".join(hip))),
+        faltando=palavras_divergentes(ref, hip),
+        sintese_s=extra.get("sintese_s", 0.0),
+        audio_s=extra.get("audio_s", 0.0),
+    )
+
+
+def _recalcular(saida: Path) -> None:
+    """Refaz só a comparação a partir das transcrições gravadas, sem motor nem ASR."""
+    antigos = [
+        json.loads(linha)
+        for linha in (saida / "resultado.jsonl").read_text(encoding="utf-8").splitlines()
+        if linha.strip()
+    ]
+    resultados = [
+        _comparar(
+            a["frase_id"],
+            a["categoria"],
+            a["texto"],
+            a["transcrito"],
+            sintese_s=a["sintese_s"],
+            audio_s=a["audio_s"],
+        )
+        for a in antigos
+    ]
+    (saida / "resultado.jsonl").write_text(
+        "".join(json.dumps(asdict(r), ensure_ascii=False) + "\n" for r in resultados),
+        encoding="utf-8",
+    )
+    anterior = json.loads((saida / "resumo.json").read_text(encoding="utf-8"))
+    meta = {
+        k: anterior[k]
+        for k in ("rotulo", "motor", "modelo_tts", "speaker", "asr", "data", "maquina", "versoes")
+    }
+    meta["recalculado_em"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    resumo = {**_resumo(resultados, meta), "erros": anterior.get("erros", [])}
+    (saida / "resumo.json").write_text(
+        json.dumps(resumo, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    _imprimir(resumo)
+
+
 async def _rodar(args: argparse.Namespace) -> None:
     import yaml
 
@@ -294,24 +381,19 @@ async def _rodar(args: argparse.Namespace) -> None:
             with wave.open(str(wav), "rb") as wf:
                 audio_s = wf.getnframes() / wf.getframerate()
             transcrito = _transcrever(asr, wav)
-            ref, hip = canonico(texto).split(), canonico(transcrito).split()
+            r = _comparar(
+                fid,
+                str(f.get("categoria", "")),
+                texto,
+                transcrito,
+                sintese_s=round(sintese_s, 2),
+                audio_s=round(audio_s, 2),
+            )
         except Exception as exc:
             # Uma frase com erro (no motor, no ASR ou no normalizador) não derruba a medição.
             erros.append({"id": fid, "erro": f"{type(exc).__name__}: {exc}"})
             print(f"  [{n}/{len(frases)}] {fid}: ERRO {type(exc).__name__}: {exc}")
             continue
-        r = Resultado(
-            frase_id=fid,
-            categoria=str(f.get("categoria", "")),
-            texto=texto,
-            esperado=" ".join(ref),
-            transcrito=transcrito,
-            wer=taxa_erro(ref, hip),
-            cer=taxa_erro(list(" ".join(ref)), list(" ".join(hip))),
-            faltando=palavras_divergentes(ref, hip),
-            sintese_s=round(sintese_s, 2),
-            audio_s=round(audio_s, 2),
-        )
         resultados.append(r)
         jsonl.write(json.dumps(asdict(r), ensure_ascii=False) + "\n")
         jsonl.flush()
@@ -369,13 +451,22 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="usa o WAV já sintetizado na pasta de saída em vez de sintetizar de novo",
     )
+    p.add_argument(
+        "--recalcular",
+        action="store_true",
+        help="refaz só a comparação a partir de resultado.jsonl, sem motor nem ASR",
+    )
     p.add_argument("--frases", type=Path, default=_FRASES_YAML)
     p.add_argument("--saida", type=Path, default=_SAIDA)
     return p.parse_args()
 
 
 def main() -> None:
-    asyncio.run(_rodar(_parse_args()))
+    args = _parse_args()
+    if args.recalcular:
+        _recalcular(args.saida / (args.rotulo or args.motor))
+        return
+    asyncio.run(_rodar(args))
 
 
 if __name__ == "__main__":
