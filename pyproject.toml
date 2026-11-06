@@ -45,6 +45,7 @@ bench = [
     "tqdm>=4.0",
     "elevenlabs>=2.0",
     "websockets>=13.0",
+    "faster-whisper>=1.2.1",
 ]
 livekit = [
     "livekit-agents>=1.8",
