@@ -92,3 +92,15 @@ As 67 frases de `bench/frases.yaml`, normalizador já corrigido. Mesma máquina,
 Fora o `SLA`, nada aqui pede mudança no motor. A hesitação aparece como pior categoria por grafia do ASR, não por pronúncia.
 
 Para refazer: `uv run --group bench python -m bench.pronuncia --motor qwen3-cpu --rotulo qwen3-0.6b-cpu-completo`.
+
+## Depois de soletrar siglas com vogal — 2026-11-06
+
+`SLA`, `URL`, `KPI`, `ERP`, `UTI` e `IPCA` entraram em `_PALAVRAS_NATIVAS`; antes iam para a voz como palavra ("sla", "url"). As 5 frases de sigla sintetizadas de novo (`--categoria normalizacao_siglas`, rótulo `qwen3-0.6b-cpu-siglas-fix`), mesma máquina, versões, motor e ASR.
+
+| Frase | Antes | Depois |
+|---|---|---|
+| `siglas_04` — "O SLA de atendimento" | "slide atendimento" (17% com o "de") | "ESL de atendimento" (17%) |
+
+O WER de `siglas_04` não mudou, mas o erro mudou de natureza: a voz passou a soletrar e o Whisper escreveu as letras como "ESL", que a comparação não casa com "esse ele á". O "slide" sumiu.
+
+Na mesma execução, `siglas_01` e `siglas_02` saíram com 0% (antes 6% e 7%) e `siglas_03` caiu de 0% para 10% ("apólice" ouvido "A pólice"), sem mudança no texto que essas frases mandam para a voz. É a variação de uma execução para outra, do mesmo tamanho das diferenças medidas; comparar sigla a sigla pede várias execuções por frase.

@@ -427,6 +427,10 @@ _PALAVRAS_NATIVAS: dict[str, str] = {
     "API": "a pê i",
     "RAM": "rã",
     "ROM": "rôm",
+    "URL": "u erre ele",
+    "ERP": "é erre pê",
+    "KPI": "cá pê i",
+    "SLA": "esse ele á",
     # ── Financeiro / bancário ───────────────────────────────────────────────────
     "TED": "tê ê dê",
     "DOC": "dê ó cê",
@@ -443,6 +447,7 @@ _PALAVRAS_NATIVAS: dict[str, str] = {
     "PGBL": "pê gê bê ele",
     "VGBL": "vê gê bê ele",
     "SELIC": "selic",
+    "IPCA": "i pê cê á",
     # ── Impostos / previdência ──────────────────────────────────────────────────
     "INSS": "i ene esse esse",
     "FGTS": "fê gê tê esse",
@@ -467,6 +472,8 @@ _PALAVRAS_NATIVAS: dict[str, str] = {
     "STJ": "esse tê jota",
     "ONU": "ô ene u",
     "OMS": "ô eme esse",
+    # ── Saúde ───────────────────────────────────────────────────────────────────
+    "UTI": "u tê i",
     # ── Mídia / comunicação ─────────────────────────────────────────────────────
     "BBC": "bê bê cê",
     "CNN": "cê ene ene",

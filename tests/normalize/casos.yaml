@@ -329,6 +329,26 @@ casos:
     entrada: "via PIX"
     esperado: "via pix"
 
+  - id: sigla_sla
+    entrada: "O SLA de atendimento é de 48 horas."
+    esperado: "O esse ele á de atendimento é de quarenta e oito horas."
+
+  - id: sigla_url
+    entrada: "acesse a URL enviada"
+    esperado: "acesse a u erre ele enviada"
+
+  - id: sigla_kpi_erp
+    entrada: "o KPI do ERP"
+    esperado: "o cá pê i do é erre pê"
+
+  - id: sigla_uti
+    entrada: "internado na UTI"
+    esperado: "internado na u tê i"
+
+  - id: sigla_ipca
+    entrada: "corrigido pelo IPCA"
+    esperado: "corrigido pelo i pê cê á"
+
   - id: sigla_tv
     entrada: "na TV"
     esperado: "na tevê"
