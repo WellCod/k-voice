@@ -36,6 +36,13 @@ Situação levantada em 2026-10-26. A área muda rápido: revisar a cada 6 meses
 - Sopro V2 Turbo: Apache-2.0, streaming; cobre português europeu, conferir pt-BR.
 - MOSS-TTS-Nano: streaming em CPU; licença e pt-BR não conferidos.
 
+## Modelos de medição (não vão para o serviço)
+
+### Whisper via faster-whisper — pronúncia por transcrição (`bench/pronuncia.py`)
+- `faster-whisper` 1.2.1 (2025-10-31), código MIT. Só no grupo `bench` do `pyproject.toml`.
+- Pesos: `large-v3` → `Systran/faster-whisper-large-v3` e `medium` → `Systran/faster-whisper-medium`, ambos com licença MIT no model card. São conversões do Whisper da OpenAI; o `openai/whisper-large-v3` tem pesos Apache-2.0. Uso comercial permitido nos dois. Conferido em 2026-11-06 no PyPI, no README, em `faster_whisper/utils.py` e nos model cards.
+- Uso: transcreve o áudio sintetizado e compara com o texto esperado; os dois lados passam pela normalização do k-voice. A taxa de erro mistura erro do TTS com erro do ASR, então serve para comparar motores, modelos e versões no mesmo ASR, não como medida absoluta.
+
 ## Descartados
 
 | Modelo | Motivo |

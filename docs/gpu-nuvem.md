@@ -38,7 +38,7 @@ git switch feat/faster-qwen3-streaming
 uv sync --group bench
 ```
 
-O repositório é privado: autentique antes com `gh auth login` ou copie a pasta com `scp`/`rsync`.
+O repositório é público; para testar uma branch local ainda não enviada, copie a pasta com `scp` ou `rsync`.
 
 ## 4. Conferir o torch
 
@@ -62,6 +62,17 @@ Saída: tabela com TTFA p50/p95 e RTF por configuração, e um `bench/outputs/st
 - `frase_inteira`: o mesmo modelo pelo `qwen_tts`, que só devolve a frase pronta. É a linha de base.
 
 O que olhar: TTFA do streaming bem abaixo do da frase inteira, e RTF menor que 1 (gera mais rápido do que fala).
+
+### Pronúncia: 0.6B contra 1.7B
+
+Na mesma máquina, mede a taxa de erro de transcrição das 67 frases nos dois tamanhos do modelo (ver `bench/pronuncia.py`):
+
+```bash
+uv run --group bench python -m bench.pronuncia --motor qwen3-gpu --asr-device cuda --rotulo qwen3-0.6b-gpu
+uv run --group bench python -m bench.pronuncia --motor qwen3-gpu --asr-device cuda --rotulo qwen3-1.7b-gpu --modelo-tts Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+```
+
+Cada execução grava os WAV, `resultado.jsonl` e `resumo.json` em `bench/outputs/pronuncia/<rotulo>/`. Junto com o TTFA do passo anterior, isso decide se o 1.7B compensa.
 
 ## 6. Servidor completo pelo WebSocket
 
@@ -89,7 +100,7 @@ O motor serializa as gerações por modelo, então com concorrência o TTFA cres
 ## 7. Trazer os resultados
 
 ```bash
-scp 'USUARIO@IP:~/k-voice/bench/outputs/*.jsonl' bench/outputs/
+scp -r 'USUARIO@IP:~/k-voice/bench/outputs/*' bench/outputs/
 ```
 
 Com os `.jsonl` no repositório local, os números entram em `docs/resultados/` e em `docs/modelos.md`, com GPU, driver, versões e data, como pede o CLAUDE.md.
