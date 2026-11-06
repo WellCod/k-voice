@@ -211,6 +211,88 @@ casos:
     entrada: "(21) 3456-7890"
     esperado: "vinte e um, três quatro cinco seis, sete oito nove zero"
 
+  - id: telefone_ddd_sem_parenteses
+    entrada: "Ligue 11 98765-4321, por favor."
+    esperado: "Ligue onze, nove oito sete seis cinco, quatro três dois um, por favor."
+
+  - id: telefone_fixo_com_hifens
+    entrada: "11-3456-7890"
+    esperado: "onze, três quatro cinco seis, sete oito nove zero"
+
+  - id: telefone_colado
+    entrada: "11987654321"
+    esperado: "onze, nove oito sete seis cinco, quatro três dois um"
+
+  - id: telefone_com_pais
+    entrada: "+55 (11) 98765-4321"
+    esperado: "mais cinquenta e cinco, onze, nove oito sete seis cinco, quatro três dois um"
+
+  - id: telefone_com_pais_colado
+    entrada: "+5511987654321"
+    esperado: "mais cinquenta e cinco, onze, nove oito sete seis cinco, quatro três dois um"
+
+  - id: telefone_celular_sem_ddd
+    entrada: "98765-4321"
+    esperado: "nove oito sete seis cinco, quatro três dois um"
+
+  - id: telefone_capitais
+    entrada: "4002-8922"
+    esperado: "quatro zero zero dois, oito nove dois dois"
+
+  - id: telefone_0800
+    entrada: "ligue para 0800 123 4567, é gratuito"
+    esperado: "ligue para zero oitocentos, um dois três, quatro cinco seis sete, é gratuito"
+
+  - id: telefone_0300_com_hifens
+    entrada: "0300-123-4567"
+    esperado: "zero trezentos, um dois três, quatro cinco seis sete"
+
+  - id: intervalo_de_anos_nao_e_telefone
+    entrada: "de 2020 a 2024"
+    esperado: "de dois mil e vinte a dois mil e vinte e quatro"
+
+  # -----------------------------------------------------------------------
+  # Códigos e números longos
+  # -----------------------------------------------------------------------
+  - id: numero_longo_nao_quebra
+    entrada: "pedido 1234567890123"
+    esperado: "pedido um dois três quatro cinco seis sete oito nove zero um dois três"
+
+  - id: codigo_de_dez_digitos
+    entrada: "protocolo 2026110600"
+    esperado: "protocolo dois zero dois seis um um zero seis zero zero"
+
+  - id: numero_com_zero_a_esquerda
+    entrada: "código 0042"
+    esperado: "código zero zero quatro dois"
+
+  - id: bilhoes_com_separador
+    entrada: "3.000.000.000"
+    esperado: "três bilhões"
+
+  # -----------------------------------------------------------------------
+  # Separador de milhar e decimal
+  # -----------------------------------------------------------------------
+  - id: milhar_exato
+    entrada: "1.000 pessoas"
+    esperado: "mil pessoas"
+
+  - id: milhar_com_zero_no_meio
+    entrada: "2.008 itens"
+    esperado: "dois mil e oito itens"
+
+  - id: milhar_e_centena
+    entrada: "10.500 unidades"
+    esperado: "dez mil e quinhentos unidades"
+
+  - id: decimal_com_milhar
+    entrada: "1.234,56 metros"
+    esperado: "mil duzentos e trinta e quatro vírgula cinquenta e seis metros"
+
+  - id: decimal_com_zero_na_casa
+    entrada: "taxa de 0,05"
+    esperado: "taxa de zero vírgula zero cinco"
+
   # -----------------------------------------------------------------------
   # CPF
   # -----------------------------------------------------------------------

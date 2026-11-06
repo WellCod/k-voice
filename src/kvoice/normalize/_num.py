@@ -103,11 +103,18 @@ def _positivo(n: int) -> str:
     return base + e + _positivo(r)
 
 
+_MAIOR_POR_EXTENSO = 999_999_999_999
+
+
 def numero_para_palavras(n: int) -> str:
     if n == 0:
         return "zero"
     if n < 0:
         return "menos " + numero_para_palavras(-n)
+    if n > _MAIOR_POR_EXTENSO:
+        # Acima dos bilhões não há nome que alguém fale; um código desse tamanho se lê
+        # dígito a dígito (e o _grupo estouraria com o grupo de bilhões acima de 999).
+        return digitos_separados(str(n))
     return _positivo(n)
 
 
