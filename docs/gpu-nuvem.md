@@ -72,7 +72,7 @@ uv run --group bench python -m bench.pronuncia --motor qwen3-gpu --asr-device cu
 uv run --group bench python -m bench.pronuncia --motor qwen3-gpu --asr-device cuda --rotulo qwen3-1.7b-gpu --modelo-tts Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
 ```
 
-Cada execução grava os WAV, `resultado.jsonl` e `resumo.json` em `bench/outputs/pronuncia/<rotulo>/`. Junto com o TTFA do passo anterior, isso decide se o 1.7B compensa.
+Cada execução grava os WAV, `resultado.jsonl` e `resumo.json` em `bench/outputs/pronuncia/<rotulo>/`. Junto com o TTFA do passo anterior, isso decide se o 1.7B compensa. A parte de pronúncia também roda num Mac com Apple Silicon, sem GPU alugada ([bench-mac.md](bench-mac.md)).
 
 ## 6. Servidor completo pelo WebSocket
 
