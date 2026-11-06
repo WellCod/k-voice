@@ -50,3 +50,45 @@ Telefone em todos os formatos, 0800, separador de milhar, decimal e números lon
 | Telefone | 4 | 1,4% | 0% |
 
 `telefone_04` ("0800 123 4567") passou a ser falado "zero oitocentos, um dois três, quatro cinco seis sete", e o "zero" que faltava aparece na transcrição. Os dois erros fora do conjunto de frases (crash com 13+ dígitos e telefone sem parênteses) estão cobertos por casos em `tests/normalize/casos.yaml`.
+
+## Conjunto completo — 2026-11-06
+
+As 67 frases de `bench/frases.yaml`, normalizador já corrigido. Mesma máquina, versões, motor e ASR da base. Rótulo `qwen3-0.6b-cpu-completo`, uma execução; síntese de 15 s a 147 s por frase, cerca de 50 min no total.
+
+| Categoria | Frases | WER | CER |
+|---|---|---|---|
+| Hesitação | 5 | 10,4% | 2,4% |
+| CPF | 2 | 10,4% | 3,1% |
+| Siglas | 5 | 5,2% | 2,1% |
+| CNPJ | 2 | 2,2% | 2,3% |
+| Firmeza | 4 | 1,8% | 0,7% |
+| Saudação, confirmação, moeda, data, telefone, endereço, frase longa, pergunta, empatia, entusiasmo | 48 | 0% | 0% |
+| **Total** | **67** | **1,7%** | **0,5%** |
+
+57 das 67 frases sem nenhuma diferença, incluindo as 5 frases longas (até 147 s de síntese), as perguntas e as de emoção. As 10 com diferença, separadas pela causa provável:
+
+**Normalizador (corrigível no k-voice)**
+
+| Frase | Diferença | Causa |
+|---|---|---|
+| `siglas_04` — "O SLA de atendimento" | "SLA de" ouvido como "slide" | `SLA` tem vogal, então `_acronimo` a trata como palavra e manda "sla" para a voz, que lê como palavra. Falta em `_PALAVRAS_NATIVAS` como "esse ele á". O mesmo vale para outras siglas com vogal fora da lista (ex.: `URL` sai "url"). |
+
+**Voz**
+
+| Frase | Diferença | Observação |
+|---|---|---|
+| `cnpj_01` — "0001" | um zero a menos | Na base saiu um zero a mais. Nas duas execuções o "zero zero zero um" saiu errado, em direções opostas: a voz se perde em dígito repetido. |
+| `hesitacao_01` — "deixa eu ver" | ouvido "deixe-o ver" | A voz junta "deixa eu" em "deix'eu", como na fala coloquial. Aceitável. |
+
+**ASR ou comparação (a voz provavelmente acertou)**
+
+| Frase | Diferença | Observação |
+|---|---|---|
+| `cpf_01`, `cpf_02`, `hesitacao_05`, `siglas_01` | "C-PF", "CPFE", "CP e Fê", "CNP, J" | O Whisper escreve a sigla soletrada de jeitos que a comparação não reconhece como CPF ou CNPJ. |
+| `siglas_02` — "TED" | ouvido "TD" | Mesmo caso: "tê ê dê" escrito como "TD". |
+| `hesitacao_02` — "Hmm" | ouvido "Hum" | Grafia da interjeição. |
+| `firmeza_04` — "alçada alterar" | ouvido "alçada a alterar" | Uma palavra a mais; pode ser a voz ou o ASR. |
+
+Fora o `SLA`, nada aqui pede mudança no motor. A hesitação aparece como pior categoria por grafia do ASR, não por pronúncia.
+
+Para refazer: `uv run --group bench python -m bench.pronuncia --motor qwen3-cpu --rotulo qwen3-0.6b-cpu-completo`.
