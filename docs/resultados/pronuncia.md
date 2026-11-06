@@ -40,3 +40,13 @@ Fora do conjunto de frases, ao montar o bench apareceram dois erros do normaliza
 - telefone sem parênteses (`11 98765-4321`, `98765-4321`, `11987654321`, `+55 11 ...`, `4002-8922`) é lido como número grande.
 
 Para refazer: `uv run --group bench python -m bench.pronuncia --motor qwen3-cpu --categoria normalizacao --rotulo qwen3-0.6b-cpu`. Os WAV, `resultado.jsonl` e `resumo.json` ficam em `bench/outputs/pronuncia/<rotulo>/` (fora do git).
+
+## Depois da correção do normalizador — 2026-11-06
+
+Telefone em todos os formatos, 0800, separador de milhar, decimal e números longos (`fix(normalize)`). Mesma máquina, versões, motor e ASR da base; as 4 frases de telefone sintetizadas de novo (`--categoria normalizacao_telefone`).
+
+| Categoria | Frases | WER antes | WER depois |
+|---|---|---|---|
+| Telefone | 4 | 1,4% | 0% |
+
+`telefone_04` ("0800 123 4567") passou a ser falado "zero oitocentos, um dois três, quatro cinco seis sete", e o "zero" que faltava aparece na transcrição. Os dois erros fora do conjunto de frases (crash com 13+ dígitos e telefone sem parênteses) estão cobertos por casos em `tests/normalize/casos.yaml`.

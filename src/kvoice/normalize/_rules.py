@@ -501,16 +501,29 @@ _RE_MOEDA_INT = re.compile(r"R\$\s*(\d{1,3}(?:\.\d{3})*)\b")
 _RE_CNPJ = re.compile(r"\b(\d{2})\.(\d{3})\.(\d{3})/(\d{4})-(\d{2})\b")
 _RE_CPF = re.compile(r"\b(\d{3})\.(\d{3})\.(\d{3})-(\d{2})\b")
 _RE_CEP = re.compile(r"\b(\d{5})-(\d{3})\b")
-_RE_TELEFONE = re.compile(r"\((\d{2})\)\s*(\d{4,5})-(\d{4})")
+# Telefone: com ou sem parênteses e +55, separado ou colado. O DDD sai como número e
+# o resto dígito a dígito. Sem DDD, só celular (9XXXX-XXXX) e os números de capitais
+# (4002-8922): um fixo de 4+4 sem DDD não se separa de um intervalo como 2020-2024.
+_RE_TELEFONE = re.compile(r"(\+55\s*)?\((\d{2})\)\s*(\d{4,5})[\s-]?(\d{4})(?!\d)")
+_RE_TELEFONE_SEM_PARENTESES = re.compile(
+    r"(?<![\d(])(\+55\s*)?(\d{2})[\s-](9\d{4}|[2-5]\d{3})[\s-]?(\d{4})(?![\d-])"
+)
+_RE_TELEFONE_COLADO = re.compile(r"(?<![\d+])(\+55\s*)?(\d{2})(9\d{4})(\d{4})(?!\d)")
+_RE_TELEFONE_SEM_DDD = re.compile(r"(?<![\d-])(9\d{4}|300[2-9]|400[1-9])-(\d{4})(?![\d-])")
+_RE_TELEFONE_0800 = re.compile(r"(?<!\d)0([3589])00[\s-]?(\d{3})[\s-]?(\d{4})(?!\d)")
 _RE_DATA = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{2,4})\b")
 _RE_DATA_CURTA = re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})(?!/\d)")
 _RE_HORA_H = re.compile(r"\b(\d{1,2})h(\d{2})?\b")
 _RE_HORA = re.compile(r"\b(\d{1,2}):(\d{2})\b")
 _RE_PORCENTAGEM = re.compile(r"\b(\d+)(?:,(\d+))?\s*%")
-_RE_DECIMAL = re.compile(r"\b(\d+),(\d{1,4})\b")
+_RE_DECIMAL = re.compile(r"(?<![\d.])(\d{1,3}(?:\.\d{3})+|\d+),(\d{1,4})\b")
+# Separador de milhar: 1.000, 2.008, 3.000.000.000. CPF e CNPJ já saíram antes;
+# IP e versão (192.168.0.1, 1.2.3) não têm grupos de três depois do primeiro.
+_RE_MILHAR = re.compile(r"(?<![\d.,])(\d{1,3}(?:\.\d{3})+)(?![\d.]|,\d)")
 _RE_ORDINAL = re.compile(r"\b(\d+)([ºª°])")
 _RE_ACRONIMO = re.compile(r"\b([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇ]{2,20})\b")
 _RE_CARDINAL = re.compile(r"\b\d+\b")
+_MIN_DIGITOS_CODIGO = 10
 _RE_SAFE = re.compile(r"(?<=[.!?])\s+")
 
 # ---------------------------------------------------------------------------
@@ -568,10 +581,18 @@ def _cep(m: re.Match[str]) -> str:
 
 
 def _telefone(m: re.Match[str]) -> str:
-    ddd = numero_para_palavras(int(m.group(1)))
-    p1 = digitos_separados(m.group(2))
-    p2 = digitos_separados(m.group(3))
-    return f"{ddd}, {p1}, {p2}"
+    pais, ddd, p1, p2 = m.groups()
+    falado = f"{numero_para_palavras(int(ddd))}, {digitos_separados(p1)}, {digitos_separados(p2)}"
+    return f"mais cinquenta e cinco, {falado}" if pais else falado
+
+
+def _telefone_sem_ddd(m: re.Match[str]) -> str:
+    return f"{digitos_separados(m.group(1))}, {digitos_separados(m.group(2))}"
+
+
+def _telefone_0800(m: re.Match[str]) -> str:
+    prefixo = numero_para_palavras(int(m.group(1)) * 100)  # 0800 → "zero oitocentos"
+    return f"zero {prefixo}, {digitos_separados(m.group(2))}, {digitos_separados(m.group(3))}"
 
 
 def _data(m: re.Match[str]) -> str:
@@ -620,9 +641,17 @@ def _porcentagem(m: re.Match[str]) -> str:
 
 
 def _decimal(m: re.Match[str]) -> str:
-    inteiro = numero_para_palavras(int(m.group(1)))
-    dec = numero_para_palavras(int(m.group(2)))
+    inteiro = numero_para_palavras(int(m.group(1).replace(".", "")))
+    casas = m.group(2)
+    # 0,05 é "zero vírgula zero cinco": os zeros à esquerda da parte decimal se falam
+    zeros = len(casas) - len(casas.lstrip("0"))
+    resto = casas[zeros:]
+    dec = " ".join(["zero"] * zeros + ([numero_para_palavras(int(resto))] if resto else []))
     return f"{inteiro} vírgula {dec}"
+
+
+def _milhar(m: re.Match[str]) -> str:
+    return numero_para_palavras(int(m.group(1).replace(".", "")))
 
 
 def _ordinal(m: re.Match[str]) -> str:
@@ -650,7 +679,12 @@ def _acronimo(m: re.Match[str]) -> str:
 
 
 def _cardinal(m: re.Match[str]) -> str:
-    return numero_para_palavras(int(m.group(0)))
+    s = m.group(0)
+    # Código ou número longo (protocolo, pedido) e número com zero à esquerda (007)
+    # se falam dígito a dígito.
+    if len(s) >= _MIN_DIGITOS_CODIGO or (len(s) > 1 and s[0] == "0"):
+        return digitos_separados(s)
+    return numero_para_palavras(int(s))
 
 
 # ---------------------------------------------------------------------------
@@ -669,13 +703,18 @@ def normalize(text: str, dict_: dict[str, str] | None = None) -> str:
     text = _RE_CNPJ.sub(_cnpj, text)
     text = _RE_CPF.sub(_cpf, text)
     text = _RE_CEP.sub(_cep, text)
+    text = _RE_TELEFONE_0800.sub(_telefone_0800, text)
     text = _RE_TELEFONE.sub(_telefone, text)
+    text = _RE_TELEFONE_SEM_PARENTESES.sub(_telefone, text)
+    text = _RE_TELEFONE_COLADO.sub(_telefone, text)
+    text = _RE_TELEFONE_SEM_DDD.sub(_telefone_sem_ddd, text)
     text = _RE_DATA.sub(_data, text)
     text = _RE_DATA_CURTA.sub(_data_curta, text)
     text = _RE_HORA_H.sub(_hora_h, text)
     text = _RE_HORA.sub(_hora, text)
     text = _RE_PORCENTAGEM.sub(_porcentagem, text)
     text = _RE_DECIMAL.sub(_decimal, text)
+    text = _RE_MILHAR.sub(_milhar, text)
     text = _RE_ORDINAL.sub(_ordinal, text)
     for sigla, forma in _PALAVRAS_NATIVAS.items():
         text = re.sub(rf"\b{re.escape(sigla)}\b", forma, text, flags=re.IGNORECASE)
