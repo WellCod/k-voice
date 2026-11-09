@@ -202,9 +202,14 @@ class PronunciationEntryCreate(BaseModel):
     def _regex_valida(self) -> PronunciationEntryCreate:
         if self.is_regex:
             try:
-                re.compile(self.term)
+                padrao = re.compile(self.term)
             except re.error as exc:
                 raise ValueError(f"Regex inválida: {exc}") from exc
+            try:
+                # Grupo inexistente ou escape inválido na expansão só estouraria na síntese.
+                padrao.sub(self.expansion, "")
+            except (re.error, IndexError) as exc:
+                raise ValueError(f"Expansão inválida para a regex: {exc}") from exc
         return self
 
 

@@ -343,8 +343,10 @@ async def _executar_com_engine(
                 entregues += 1
                 yield ready
 
+    falhou = False
+
     async def _send_audio() -> None:
-        nonlocal ttfa_ms, total_audio_ms, first_chunk, concluidos
+        nonlocal ttfa_ms, total_audio_ms, first_chunk, concluidos, falhou
         try:
             # aclosing: ao sair do loop o motor para a geração na hora, não só no GC.
             async with contextlib.aclosing(await engine.stream(_text_iter(), voice, opts)) as gen:
@@ -367,7 +369,16 @@ async def _executar_com_engine(
         except Exception:
             _log.exception("falha no motor %s (request_id=%s)", engine.name, request_id)
             streams_errors.labels(code="engine").inc()
+            falhou = True
             await send_queue.put({"type": "error", "code": "engine"})
+
+    cancelled_by_client = False
+
+    def _interromper() -> None:
+        nonlocal cancelled_by_client
+        cancelled.set()
+        cancelled_by_client = True
+        text_queue.put_nowait(None)
 
     async def _sender() -> None:
         while True:
@@ -377,53 +388,67 @@ async def _executar_com_engine(
             if isinstance(item, (bytes, bytearray)):
                 if cancelled.is_set():
                     continue
-                await websocket.send_bytes(item)
+                try:
+                    await websocket.send_bytes(item)
+                except Exception:
+                    # Cliente sumiu no meio do áudio: para o motor em vez de gerar para ninguém.
+                    _interromper()
+                    audio_task.cancel()
+                    return
             else:
                 await websocket.send_json(item)
 
+    async def _reader() -> None:
+        # Continua lendo depois do "end": o barge-in chega como "cancel" enquanto o
+        # áudio do turno ainda está saindo, e precisa parar o motor.
+        nonlocal total_chars
+        encerrado = False
+        try:
+            async for raw in websocket.iter_text():
+                try:
+                    msg = parse_client_msg(raw)
+                except ValidationError:
+                    continue
+                if isinstance(msg, CancelMsg):
+                    _interromper()
+                    return
+                if encerrado:
+                    continue
+                if isinstance(msg, TextMsg):
+                    total_chars += len(msg.text)
+                    await text_queue.put(msg.text)
+                    if msg.flush:
+                        await text_queue.put(_FLUSH)
+                elif isinstance(msg, EndMsg):
+                    encerrado = True
+                    await text_queue.put(None)
+        except WebSocketDisconnect:
+            pass
+        _interromper()
+
     audio_task = asyncio.create_task(_send_audio())
     sender_task = asyncio.create_task(_sender())
+    reader_task = asyncio.create_task(_reader())
 
-    cancelled_by_client = False
     try:
-        async for raw in websocket.iter_text():
-            try:
-                msg = parse_client_msg(raw)
-            except ValidationError:
-                continue
-
-            if isinstance(msg, TextMsg):
-                total_chars += len(msg.text)
-                await text_queue.put(msg.text)
-                if msg.flush:
-                    await text_queue.put(_FLUSH)
-            elif isinstance(msg, CancelMsg):
-                cancelled.set()
-                await text_queue.put(None)
-                cancelled_by_client = True
-                break
-            elif isinstance(msg, EndMsg):
-                await text_queue.put(None)
-                break
-        else:
-            cancelled.set()
-            await text_queue.put(None)
-            cancelled_by_client = True
-
-    except WebSocketDisconnect:
-        cancelled.set()
-        await text_queue.put(None)
-        cancelled_by_client = True
-
+        await asyncio.wait({audio_task, reader_task}, return_when=asyncio.FIRST_COMPLETED)
     finally:
         # Cancelamento não espera a síntese em curso terminar (gate: < 50 ms).
         if cancelled.is_set():
             audio_task.cancel()
         with contextlib.suppress(asyncio.CancelledError, Exception):
             await audio_task
+        reader_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await reader_task
         await send_queue.put(None)
         with contextlib.suppress(Exception):
             await sender_task
+
+    if falhou and not cancelled_by_client:
+        with contextlib.suppress(Exception):
+            await websocket.close(code=1011)
+        return
 
     if not cancelled_by_client:
         streams_done.inc()

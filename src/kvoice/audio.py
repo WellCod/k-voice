@@ -92,16 +92,16 @@ def preprocess_ref_audio(audio_bytes: bytes, ext: str) -> tuple[bytes, float]:
         "-ac",
         "1",
         "-f",
-        "wav",
+        "s16le",
         "pipe:1",
     ]
     result = subprocess.run(cmd, input=audio_bytes, capture_output=True, timeout=120)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg preprocess: {result.stderr.decode(errors='replace')[:400]}")
-    wav_bytes = result.stdout
-    with io.BytesIO(wav_bytes) as buf, wave.open(buf, "rb") as wf:
-        duration_s = wf.getnframes() / wf.getframerate()
-    return wav_bytes, duration_s
+    # PCM cru: WAV num pipe sai com o tamanho do bloco de dados em 0xFFFFFFFF, e a duração
+    # lida do cabeçalho dava ~134 mil segundos para qualquer áudio.
+    pcm = result.stdout
+    return _to_wav(pcm, 16_000), pcm_duration_ms(pcm, 16_000) / 1000
 
 
 def _ffmpeg(pcm_data: bytes, sample_rate: int, extra_args: list[str]) -> bytes:

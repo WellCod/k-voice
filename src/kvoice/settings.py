@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     # Menor = primeiro som mais cedo e mais overhead de decodificação.
     qwen3_chunk_size: int = 8
 
+    # Valores aceitos no cabeçalho Host em /mcp (ex.: "voz.exemplo.com.br"); vazio desliga
+    # a checagem, já que toda chamada exige token.
+    mcp_allowed_hosts: list[str] = []
+
     @property
     def sync_database_url(self) -> str:
         url = self.database_url.replace("+asyncpg", "+psycopg2")
