@@ -69,15 +69,14 @@ def test_regex_quebrada_ja_gravada_nao_derruba_a_fala() -> None:
 
 def test_duracao_da_referencia_vem_do_audio() -> None:
     import io
+    import shutil
     import wave
 
     import numpy as np
 
     from kvoice.audio import _ffmpeg_bin, preprocess_ref_audio
 
-    try:
-        _ffmpeg_bin()
-    except Exception:
+    if shutil.which(_ffmpeg_bin()) is None:
         pytest.skip("ffmpeg ausente")
     buf = io.BytesIO()
     with wave.open(buf, "wb") as wf:
