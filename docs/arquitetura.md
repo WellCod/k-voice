@@ -104,7 +104,7 @@ Resposta: `{"request_id": "...", "url": "https://...", "duration_ms": 5120, "cha
 Só o que o inventário de [paridade-elevenlabs.md](paridade-elevenlabs.md) marcar como usado. `voice_id` da ElevenLabs mapeado para voz k-voice por tabela. Parâmetros sem equivalente são aceitos e ignorados, com log.
 
 ### MCP — `/mcp`
-Tools: `synthesize(text, voice_id, format) → {url, duration_ms}`, `list_voices(filtros) → [voice]`, `get_voice(voice_id)`. Autenticação pelo mesmo token de cliente. Sem streaming de áudio ([ADR-0006](adr/0006-mcp-so-para-lote.md)).
+Tools: `synthesize(text, voice_id, format) → {url, duration_ms}`, `list_voices(filtros) → [voice]`, `get_voice(voice_id)`. Autenticação pelo mesmo token de cliente. Sem streaming de áudio ([ADR-0006](adr/0006-mcp-so-para-lote.md)). Streamable HTTP do SDK `mcp`, montado na raiz do app com o endpoint em `/mcp`; o session manager roda no lifespan do FastAPI.
 
 ## Implantação
 

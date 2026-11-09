@@ -13,6 +13,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastapi import WebSocketDisconnect
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
@@ -573,3 +574,73 @@ def test_ws_aplica_dicionario_do_cliente_mesmo_com_termo_partido(
     texto = " ".join(eng.textos)
     assert "Klubi" not in texto
     assert texto.count("clúbi") == 2
+
+
+def test_ws_cancel_depois_do_end_para_o_motor(
+    fake_client: Any, fake_token: Any, fake_voice: Any
+) -> None:
+    # Barge-in: o LLM já terminou (end), o áudio ainda está saindo e o usuário interrompe.
+    eng = _SlowEngine()
+    set_engine(eng)
+    app = _make_app()
+    with (
+        _auth_patch(fake_client, fake_token),
+        _voice_patch(fake_voice),
+        _routing_patch(_kvoice_decision(eng)),
+        _uso_patch() as uso,
+        TestClient(app) as client,
+        client.websocket_connect("/v1/tts/stream?token=tok") as ws,
+    ):
+        ws.send_json({"type": "start", "voice_id": "v_fake"})
+        ws.receive_json()
+        ws.send_json({"type": "text", "text": "Uma frase completa.", "flush": True})
+        ws.send_json({"type": "end"})
+        time.sleep(0.1)
+        t0 = time.monotonic()
+        ws.send_json({"type": "cancel"})
+        # O servidor fecha o socket na hora; antes, ignorava o cancel e mandava "done" 3 s depois.
+        with pytest.raises(WebSocketDisconnect):
+            ws.receive_json()
+        elapsed_ms = (time.monotonic() - t0) * 1000
+
+    assert elapsed_ms < 1000, f"cancel depois do end esperou a síntese: {elapsed_ms:.0f} ms"
+    uso.assert_not_called()
+
+
+class _EngineQueFalha(_FakeEngine):
+    async def stream(
+        self,
+        text: Any,
+        voice: Voice,
+        opts: SynthOptions,
+    ) -> AsyncGenerator[AudioChunk, None]:
+        async def _gen() -> AsyncGenerator[AudioChunk, None]:
+            async for _ in text:
+                raise RuntimeError("motor caiu")
+            yield AudioChunk(data=b"", sample_rate=24000, duration_ms=0.0)
+
+        return _gen()
+
+
+def test_ws_erro_do_motor_nao_manda_done(
+    fake_client: Any, fake_token: Any, fake_voice: Any
+) -> None:
+    eng = _EngineQueFalha()
+    set_engine(eng)
+    app = _make_app()
+    with (
+        _auth_patch(fake_client, fake_token),
+        _voice_patch(fake_voice),
+        _routing_patch(_kvoice_decision(eng)),
+        _uso_patch() as uso,
+        TestClient(app) as client,
+        client.websocket_connect("/v1/tts/stream?token=tok") as ws,
+    ):
+        ws.send_json({"type": "start", "voice_id": "v_fake"})
+        ws.receive_json()
+        ws.send_json({"type": "text", "text": "Uma frase completa.", "flush": True})
+        assert ws.receive_json() == {"type": "error", "code": "engine"}
+        with pytest.raises(WebSocketDisconnect) as exc:
+            ws.receive_json()
+        assert exc.value.code == 1011
+    uso.assert_not_called()

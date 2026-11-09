@@ -100,12 +100,13 @@ Sobe Postgres, MinIO, a migração e o servidor na porta 8000 com a GPU reservad
 | `S3_*` | MinIO local | Áudio de lote |
 | `REFERENCE_AUDIO_KEY` | vazio | Chave Fernet do áudio de referência; só por ambiente |
 | `ELEVENLABS_API_KEY` | vazio | Habilita o fallback |
-| `QWEN3_ENABLED` | `false` | Carrega o Qwen3-TTS; senão usa o stub |
+| `QWEN3_ENABLED` | `false` | Carrega o Qwen3-TTS; senão usa o stub. Se o carregamento falhar, o servidor não sobe |
 | `QWEN3_DEVICE` | `cpu` | `cuda` ativa o streaming em GPU |
 | `QWEN3_DTYPE` | `auto` | float32 em CPU, bfloat16 em CUDA |
 | `QWEN3_CHUNK_SIZE` | `8` | Pedaço do streaming em GPU (~`chunk_size`/12 s de áudio) |
 | `QWEN3_MODEL_ID` / `QWEN3_BASE_MODEL_ID` | 0.6B CustomVoice / Base | Modelos preset e de clonagem |
 | `QWEN3_SPEAKER` | `vivian` | Speaker padrão das vozes preset |
+| `MCP_ALLOWED_HOSTS` | `[]` | Hosts aceitos em `/mcp`, em JSON; vazio desliga a checagem de Host |
 
 ## Desempenho
 

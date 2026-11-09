@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Response
 from fastapi.staticfiles import StaticFiles
+from mcp.server.transport_security import TransportSecuritySettings
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from kvoice.api.routers import admin, tts, voices
@@ -89,16 +90,18 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     settings.qwen3_device,
                 )
             except Exception:
-                log.exception("Falha ao carregar Qwen3-TTS; usando engine stub")
-                from kvoice.engine.stub import StubEngine
-
-                set_engine(StubEngine())
+                # Sem fallback para o stub: com QWEN3_ENABLED o stub serviria um tom no lugar
+                # da voz, com /health "ok" e admissão aceitando tudo.
+                log.exception("Falha ao carregar Qwen3-TTS; o servidor não sobe")
+                raise
         else:
             from kvoice.engine.stub import StubEngine
 
             set_engine(StubEngine())
 
-    yield
+    # O lifespan do app MCP montado não roda sozinho; sem isto toda chamada a /mcp falha.
+    async with mcp.session_manager.run():
+        yield
 
 
 def create_app() -> FastAPI:
@@ -109,7 +112,6 @@ def create_app() -> FastAPI:
     app.include_router(voices.router)
     app.include_router(tts.router)
     app.include_router(elevenlabs_compat)
-    app.mount("/mcp", mcp.streamable_http_app())
     if _STATIC.exists():
         app.mount("/demo", StaticFiles(directory=_STATIC, html=True), name="demo")
 
@@ -132,6 +134,16 @@ def create_app() -> FastAPI:
     @app.get("/metrics")
     def metrics() -> Response:
         return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+    # Montado na raiz e por último: o app MCP responde só em /mcp, e as rotas acima têm
+    # prioridade. A autenticação é por token, então a proteção contra DNS rebinding só
+    # liga quando MCP_ALLOWED_HOSTS for definido.
+    hosts = get_settings().mcp_allowed_hosts
+    seguranca = TransportSecuritySettings(
+        enable_dns_rebinding_protection=bool(hosts), allowed_hosts=hosts
+    )
+    mcp_app = mcp.streamable_http_app(streamable_http_path="/mcp", transport_security=seguranca)
+    app.mount("/", mcp_app)
 
     return app
 

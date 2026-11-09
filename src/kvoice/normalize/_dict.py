@@ -7,6 +7,7 @@ Entradas de regex são aplicadas em sequência, após os literais.
 
 from __future__ import annotations
 
+import logging
 import re
 import uuid
 
@@ -16,6 +17,8 @@ from kvoice.db.models import PronunciationEntry
 from kvoice.db.session import session_factory
 
 PronEntry = tuple[str, str, bool]  # (term, expansion, is_regex)
+
+_log = logging.getLogger(__name__)
 
 
 async def load_dict(client_id: uuid.UUID) -> list[PronEntry]:
@@ -47,5 +50,12 @@ async def load_dict(client_id: uuid.UUID) -> list[PronEntry]:
 def apply_dict(text: str, entries: list[PronEntry]) -> str:
     """Aplica literais primeiro, depois regex, na ordem da lista."""
     for term, expansion, is_regex in entries:
-        text = re.sub(term, expansion, text) if is_regex else text.replace(term, expansion)
+        if not is_regex:
+            text = text.replace(term, expansion)
+            continue
+        try:
+            text = re.sub(term, expansion, text)
+        except (re.error, IndexError):
+            # Entrada antiga gravada antes da validação: pula ela, não derruba a fala.
+            _log.warning("regex do dicionário ignorada: %r", term)
     return text
