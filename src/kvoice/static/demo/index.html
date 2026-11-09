@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>k-voice — Painel</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23a371f7'/%3E%3Crect x='12' y='6' width='8' height='14' rx='4' fill='white'/%3E%3Cpath d='M9 15a7 7 0 0 0 14 0M16 22v4' stroke='white' stroke-width='2' fill='none'/%3E%3C/svg%3E">
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     :root{
@@ -11,7 +12,7 @@
       --border:#30363d;--border-dim:#21262d;
       --primary:#a371f7;--primary-dim:rgba(163,113,247,.15);--primary-glow:rgba(163,113,247,.2);
       --green:#3fb950;--red:#f85149;--yellow:#d29922;--blue:#58a6ff;
-      --text:#e6edf3;--text-muted:#8b949e;--text-dim:#6e7681;
+      --text:#e6edf3;--text-muted:#8b949e;--text-dim:#848d97;
       --r:6px;--sidebar-w:224px;
     }
     body{
@@ -343,6 +344,34 @@
     .chip:hover{border-color:var(--primary);color:var(--text)}
     .chip.sel{background:var(--primary-dim);border-color:var(--primary);color:var(--primary)}
 
+    /* ── Botões sem aparência de botão (chips, abas, badge) ── */
+    button.chip,button.tab,button.tok-badge{font-family:inherit;cursor:pointer}
+    button.tab{background:none;border:none;border-bottom:2px solid transparent}
+    button.tab.active{border-bottom-color:var(--primary)}
+    :focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+    .synth-grid{display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:start}
+    .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+    /* ── Tela estreita: menu vira barra no topo e a síntese fica em uma coluna ── */
+    @media (max-width:800px){
+      body{display:block;height:auto;overflow:auto}
+      .sidebar{height:auto;flex-direction:row;align-items:center;overflow-x:auto;overflow-y:hidden;
+        border-right:none;border-bottom:1px solid var(--border)}
+      .logo{border-bottom:none;padding:10px 12px}
+      .logo-text{display:none}
+      nav{display:flex;gap:4px;padding:6px 8px;flex:none}
+      .nav-sep,.sidebar-foot{display:none}
+      .nav-link{width:auto;white-space:nowrap}
+      .main{height:auto;overflow:visible}
+      .topbar{padding:0 16px}
+      .content{overflow:visible;padding:16px}
+      .synth-grid{grid-template-columns:1fr}
+      .search-row{flex-wrap:wrap}
+      .search-row select{width:100%}
+      #toasts{left:16px;right:16px;bottom:16px}
+      .toast{min-width:0}
+    }
+
     /* ── Utils ── */
     .flex{display:flex}.fbet{display:flex;justify-content:space-between;align-items:center}
     .gap8{gap:8px}.gap12{gap:12px}
@@ -394,10 +423,11 @@
       <div class="eng-badge" id="eng-badge">
         <div class="eng-dot"></div><span id="eng-txt">processando</span>
       </div>
-      <div class="tok-badge no" id="tok-badge">
-        <div class="tok-dot"></div><span id="tok-txt">Sem token</span>
-      </div>
-      <button class="btn btn-ghost btn-sm" onclick="openM('m-settings')">⚙</button>
+      <button type="button" class="tok-badge no" id="tok-badge" onclick="openM('m-settings')"
+        title="Configurar token" aria-live="polite">
+        <span class="tok-dot"></span><span id="tok-txt">Sem token</span>
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="openM('m-settings')" aria-label="Configurações">⚙</button>
     </div>
   </header>
 
@@ -405,12 +435,12 @@
 
     <!-- ── Sintetizar ── -->
     <div class="page active" id="page-synthesize">
-      <div style="display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:start">
+      <div class="synth-grid">
 
         <div>
           <div class="card">
             <div class="fbet mb16">
-              <label class="lbl" style="margin:0">Texto</label>
+              <label class="lbl" for="s-text" style="margin:0">Texto</label>
               <span class="xs muted" id="char-ctr">0 / 10.000</span>
             </div>
             <div class="fgrp">
@@ -419,41 +449,34 @@
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" class="fgrp">
               <div>
-                <label class="lbl">Voz</label>
+                <label class="lbl" for="s-voice">Voz</label>
                 <select id="s-voice" onchange="updateStyleVisibility()"><option value="">— carregando —</option></select>
               </div>
               <div>
-                <label class="lbl">Formato</label>
-                <div class="seg">
-                  <button class="btn btn-secondary active" onclick="setFmt('ogg_opus',this)">OGG</button>
-                  <button class="btn btn-secondary" onclick="setFmt('mp3_44100',this)">MP3</button>
-                  <button class="btn btn-secondary" onclick="setFmt('wav_24000',this)">WAV</button>
+                <span class="lbl" id="lbl-formato">Formato</span>
+                <div class="seg" role="group" aria-labelledby="lbl-formato">
+                  <button type="button" class="btn btn-secondary active" aria-pressed="true" onclick="setFmt('ogg_opus',this)">OGG</button>
+                  <button type="button" class="btn btn-secondary" aria-pressed="false" onclick="setFmt('mp3_44100',this)">MP3</button>
+                  <button type="button" class="btn btn-secondary" aria-pressed="false" onclick="setFmt('wav_24000',this)">WAV</button>
                 </div>
-              </div>
-            </div>
-            <div class="fgrp">
-              <label class="lbl">Velocidade</label>
-              <div class="slider-row">
-                <input type="range" id="s-speed" min="0.5" max="2.0" step="0.1" value="1.0"
-                  oninput="document.getElementById('s-sval').textContent=parseFloat(this.value).toFixed(1)+'×'">
-                <span class="sval" id="s-sval">1.0×</span>
               </div>
             </div>
             <div class="fgrp" id="style-section">
               <label class="lbl">Estilo / Entonação</label>
               <div class="chip-grp" id="style-chips">
-                <span class="chip sel" onclick="selStyle('',this)">Neutro</span>
-                <span class="chip" onclick="selStyle('fale com alegria e entusiasmo',this)">Alegre</span>
-                <span class="chip" onclick="selStyle('fale de forma calma e tranquila',this)">Calmo</span>
-                <span class="chip" onclick="selStyle('fale com urgência e seriedade',this)">Urgente</span>
-                <span class="chip" onclick="selStyle('fale de forma formal e profissional',this)">Formal</span>
-                <span class="chip" onclick="selStyle('fale com animação e energia',this)">Animado</span>
-                <span class="chip" onclick="selStyle('sussurre suavemente',this)">Sussurro</span>
-                <span class="chip" onclick="selStyle('fale com tristeza e melancolia',this)">Triste</span>
-                <span class="chip" onclick="selStyle('fale em português brasileiro com dicção clara, boa articulação e pronúncia nativa',this)">Dicção clara</span>
-                <span class="chip" onclick="selStyle('__custom__',this)">✏ Personalizado</span>
+                <button type="button" class="chip sel" onclick="selStyle('',this)">Neutro</button>
+                <button type="button" class="chip" onclick="selStyle('fale com alegria e entusiasmo',this)">Alegre</button>
+                <button type="button" class="chip" onclick="selStyle('fale de forma calma e tranquila',this)">Calmo</button>
+                <button type="button" class="chip" onclick="selStyle('fale com urgência e seriedade',this)">Urgente</button>
+                <button type="button" class="chip" onclick="selStyle('fale de forma formal e profissional',this)">Formal</button>
+                <button type="button" class="chip" onclick="selStyle('fale com animação e energia',this)">Animado</button>
+                <button type="button" class="chip" onclick="selStyle('sussurre suavemente',this)">Sussurro</button>
+                <button type="button" class="chip" onclick="selStyle('fale com tristeza e melancolia',this)">Triste</button>
+                <button type="button" class="chip" onclick="selStyle('fale em português brasileiro com dicção clara, boa articulação e pronúncia nativa',this)">Dicção clara</button>
+                <button type="button" class="chip" onclick="selStyle('__custom__',this)">✏ Personalizado</button>
               </div>
               <input type="text" id="style-custom" placeholder="Instrução de estilo em texto livre…"
+                aria-label="Instrução de estilo personalizada" maxlength="500"
                 style="display:none;margin-top:8px" oninput="_styleCustom=this.value.trim()">
               <div id="style-clone-note" style="display:none" class="fhint mt8">
                 Voz clonada — o timbre vem do áudio de referência; o chip de estilo aplica instrução adicional.
@@ -477,7 +500,7 @@
               <div class="audio-meta" id="r-meta"></div>
               <div class="flex gap8">
                 <a id="r-dl" class="btn btn-secondary btn-sm" download>⬇ Download</a>
-                <button class="btn btn-ghost btn-sm" onclick="document.getElementById('result-card').style.display='none'">✕</button>
+                <button class="btn btn-ghost btn-sm" aria-label="Fechar resultado" onclick="document.getElementById('result-card').style.display='none'">✕</button>
               </div>
             </div>
           </div>
@@ -505,8 +528,8 @@
         </div>
       </div>
       <div class="search-row">
-        <input id="v-search" placeholder="Buscar por nome…" oninput="filterVoices()">
-        <select id="v-lang" onchange="filterVoices()">
+        <input id="v-search" aria-label="Buscar voz por nome" placeholder="Buscar por nome…" oninput="filterVoices()">
+        <select id="v-lang" aria-label="Filtrar por língua" onchange="filterVoices()">
           <option value="">Todas as línguas</option>
           <option value="pt-BR">pt-BR</option>
           <option value="en-US">en-US</option>
@@ -540,9 +563,9 @@
     <!-- ── Dicionário ── -->
     <div class="page" id="page-dictionary">
       <div class="sec-title mb16">Dicionário de pronúncia</div>
-      <div class="tabs">
-        <div class="tab active" onclick="setDictTab('global',this)">Global</div>
-        <div class="tab" onclick="setDictTab('client',this)">Por cliente</div>
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab active" onclick="setDictTab('global',this)">Global</button>
+        <button type="button" class="tab" onclick="setDictTab('client',this)">Por cliente</button>
       </div>
       <div id="dict-global">
         <div class="fbet mb16">
@@ -560,7 +583,7 @@
       </div>
       <div id="dict-client" style="display:none">
         <div class="fgrp">
-          <label class="lbl">Cliente</label>
+          <label class="lbl" for="dict-cl-sel">Cliente</label>
           <select id="dict-cl-sel" onchange="loadClientDict(this.value)">
             <option value="">Selecione um cliente</option>
           </select>
@@ -595,22 +618,26 @@
           <div class="stat-val muted" id="h-status">—</div>
         </div>
         <div class="stat-card">
-          <div class="stat-lbl">Streams ativos</div>
+          <div class="stat-lbl">Motor</div>
+          <div class="stat-val cv-purple" id="h-engine" style="font-size:18px">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-lbl">Ativas / na fila</div>
           <div class="stat-val cv-blue" id="h-streams">—</div>
         </div>
         <div class="stat-card">
-          <div class="stat-lbl">Erros totais</div>
-          <div class="stat-val" id="h-errors">—</div>
+          <div class="stat-lbl">Streams concluídos</div>
+          <div class="stat-val cv-purple" id="h-done">—</div>
         </div>
         <div class="stat-card">
-          <div class="stat-lbl">Sintetizações</div>
-          <div class="stat-val cv-purple" id="h-done">—</div>
+          <div class="stat-lbl">Erros de stream</div>
+          <div class="stat-val" id="h-errors">—</div>
         </div>
       </div>
       <div class="card">
         <div class="fbet mb16">
           <div class="card-title" style="margin-bottom:0">Métricas Prometheus</div>
-          <button class="btn btn-ghost btn-sm" onclick="loadHealth()">↻</button>
+          <button class="btn btn-ghost btn-sm" aria-label="Atualizar métricas" onclick="loadHealth()">↻</button>
         </div>
         <div class="metrics-pre" id="h-metrics">Carregando…</div>
       </div>
@@ -623,14 +650,15 @@
 
 <!-- Settings -->
 <div class="overlay" id="m-settings">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true">
     <div class="modal-hd">
       <div class="modal-title">⚙️ Configurações</div>
-      <button class="btn btn-ghost btn-sm" onclick="closeM('m-settings')">✕</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeM('m-settings')" aria-label="Fechar">✕</button>
     </div>
     <div class="fgrp">
-      <label class="lbl">Token de API</label>
-      <input type="password" id="cfg-token" placeholder="kv_…" autocomplete="off">
+      <label class="lbl" for="cfg-token">Token de API</label>
+      <input type="password" id="cfg-token" placeholder="kv_…" autocomplete="off"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();saveToken()}">
       <div class="fhint">Token com escopo <code>admin</code> libera todas as funcionalidades.
         Guardado apenas na aba atual do navegador.</div>
     </div>
@@ -643,14 +671,14 @@
 
 <!-- New client -->
 <div class="overlay" id="m-new-client">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true">
     <div class="modal-hd">
       <div class="modal-title">Novo cliente</div>
-      <button class="btn btn-ghost btn-sm" onclick="closeM('m-new-client')">✕</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeM('m-new-client')" aria-label="Fechar">✕</button>
     </div>
     <div class="fgrp">
-      <label class="lbl">Nome</label>
-      <input type="text" id="nc-name" placeholder="Ex.: Klubi" onkeydown="if(event.key==='Enter')createClient()">
+      <label class="lbl" for="nc-name">Nome</label>
+      <input type="text" id="nc-name" placeholder="Ex.: Klubi" onkeydown="if(event.key==='Enter'){event.preventDefault();createClient()}">
     </div>
     <div class="modal-ft">
       <button class="btn btn-secondary" onclick="closeM('m-new-client')">Cancelar</button>
@@ -661,14 +689,14 @@
 
 <!-- New token -->
 <div class="overlay" id="m-new-token">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true">
     <div class="modal-hd">
       <div class="modal-title">Novo token</div>
-      <button class="btn btn-ghost btn-sm" onclick="closeM('m-new-token')">✕</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeM('m-new-token')" aria-label="Fechar">✕</button>
     </div>
     <input type="hidden" id="nt-cid">
     <div class="fgrp">
-      <label class="lbl">Nome</label>
+      <label class="lbl" for="nt-name">Nome</label>
       <input type="text" id="nt-name" placeholder="Ex.: livekit-prod">
     </div>
     <div class="fgrp">
@@ -689,10 +717,10 @@
 
 <!-- Token revealed -->
 <div class="overlay" id="m-token-ok">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true">
     <div class="modal-hd">
       <div class="modal-title">✅ Token criado</div>
-      <button class="btn btn-ghost btn-sm" onclick="closeM('m-token-ok')">✕</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeM('m-token-ok')" aria-label="Fechar">✕</button>
     </div>
     <p class="sm muted mb16">Copie agora — não será exibido novamente.</p>
     <div class="tok-display" id="tok-reveal"></div>
@@ -706,18 +734,18 @@
 
 <!-- New pronunciation entry -->
 <div class="overlay" id="m-new-pron">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true">
     <div class="modal-hd">
       <div class="modal-title">Adicionar entrada</div>
-      <button class="btn btn-ghost btn-sm" onclick="closeM('m-new-pron')">✕</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeM('m-new-pron')" aria-label="Fechar">✕</button>
     </div>
     <input type="hidden" id="pron-cid">
     <div class="fgrp">
-      <label class="lbl">Termo</label>
+      <label class="lbl" for="pron-term">Termo</label>
       <input type="text" id="pron-term" placeholder="Ex.: PIX">
     </div>
     <div class="fgrp">
-      <label class="lbl">Expansão</label>
+      <label class="lbl" for="pron-exp">Expansão</label>
       <input type="text" id="pron-exp" placeholder="Ex.: pix">
     </div>
     <div class="fgrp">
@@ -734,10 +762,10 @@
 
 <!-- Preset voice -->
 <div class="overlay" id="m-new-voice">
-  <div class="modal" style="width:460px">
+  <div class="modal" role="dialog" aria-modal="true" style="width:460px">
     <div class="modal-hd">
       <div class="modal-title">Nova voz preset</div>
-      <button class="btn btn-ghost btn-sm" onclick="closeM('m-new-voice')">✕</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeM('m-new-voice')" aria-label="Fechar">✕</button>
     </div>
     <div class="fgrp">
       <label class="lbl">Nome <span style="color:var(--red)">*</span></label>
@@ -745,7 +773,7 @@
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="fgrp">
-        <label class="lbl">Idioma</label>
+        <label class="lbl" for="nv-lang">Idioma</label>
         <select id="nv-lang">
           <option value="pt-BR">pt-BR</option>
           <option value="en-US">en-US</option>
@@ -753,7 +781,7 @@
         </select>
       </div>
       <div class="fgrp">
-        <label class="lbl">Speaker</label>
+        <label class="lbl" for="nv-model">Speaker</label>
         <select id="nv-model">
           <option value="">padrão do servidor</option>
           <option value="vivian">vivian (F)</option>
@@ -769,7 +797,7 @@
       </div>
     </div>
     <div class="fgrp">
-      <label class="lbl">Instrução de estilo <span class="xs muted">(opcional, em inglês)</span></label>
+      <label class="lbl" for="nv-style-prompt">Instrução de estilo <span class="xs muted">(opcional)</span></label>
       <input type="text" id="nv-style-prompt" placeholder="Ex.: Speak in a warm, friendly tone">
       <div class="fhint">Define o comportamento padrão desta voz. Pode ser sobreposto por síntese.</div>
     </div>
@@ -777,7 +805,7 @@
       <summary class="xs muted" style="cursor:pointer;user-select:none">Metadados opcionais ▾</summary>
       <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="fgrp" style="margin-bottom:0">
-          <label class="lbl">Gênero</label>
+          <label class="lbl" for="nv-gender">Gênero</label>
           <select id="nv-gender">
             <option value="">—</option>
             <option value="male">male</option>
@@ -786,13 +814,14 @@
           </select>
         </div>
         <div class="fgrp" style="margin-bottom:0">
-          <label class="lbl">Faixa etária</label>
+          <label class="lbl" for="nv-age">Faixa etária</label>
           <input type="text" id="nv-age" placeholder="ex: adult">
         </div>
       </div>
       <div class="fgrp mt8" style="margin-bottom:0">
-        <label class="lbl">ID personalizado</label>
-        <input type="text" id="nv-id" placeholder="auto-gerado">
+        <label class="lbl" for="nv-id">ID personalizado</label>
+        <input type="text" id="nv-id" placeholder="auto-gerado"
+          oninput="if(this.value)this.dataset.manual='1';else delete this.dataset.manual">
         <div class="fhint">Slug único, sem espaços ou acentos.</div>
       </div>
     </details>
@@ -805,10 +834,10 @@
 
 <!-- Clone voice -->
 <div class="overlay" id="m-clone-voice">
-  <div class="modal" style="width:520px">
+  <div class="modal" role="dialog" aria-modal="true" style="width:520px">
     <div class="modal-hd">
       <div class="modal-title" id="cv-title">🎤 Clonar voz</div>
-      <button class="btn btn-ghost btn-sm" onclick="closeCloneM()">✕</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeCloneM()" aria-label="Fechar">✕</button>
     </div>
     <input type="hidden" id="cv-vid">
     <div id="cv-new-fields">
@@ -818,7 +847,7 @@
           <input type="text" id="cv-vname" placeholder="Ex.: Weslley" oninput="autoId(this,'cv-auto-id')">
         </div>
         <div class="fgrp">
-          <label class="lbl">Idioma</label>
+          <label class="lbl" for="cv-lang">Idioma</label>
           <select id="cv-lang">
             <option value="pt-BR">pt-BR</option>
             <option value="en-US">en-US</option>
@@ -829,9 +858,9 @@
     </div>
     <input type="hidden" id="cv-auto-id">
     <div class="sm muted mb12">Grave ou envie <strong>10–60 segundos</strong> de voz clara, sem ruído. O áudio é tratado como dado biométrico (LGPD).</div>
-    <div class="tabs" style="margin-bottom:14px">
-      <div class="tab active" id="cv-tab-rec" onclick="setCvTab('rec',this)">🎙 Gravar</div>
-      <div class="tab" id="cv-tab-file" onclick="setCvTab('file',this)">📁 Arquivo</div>
+    <div class="tabs" role="tablist" style="margin-bottom:14px">
+      <button type="button" class="tab active" id="cv-tab-rec" onclick="setCvTab('rec',this)">🎙 Gravar</button>
+      <button type="button" class="tab" id="cv-tab-file" onclick="setCvTab('file',this)">📁 Arquivo</button>
     </div>
     <div id="cv-panel-rec">
       <div style="text-align:center;padding:8px 0">
@@ -853,7 +882,9 @@
         <strong>Mínimo 5 s de fala limpa</strong> (silêncios são removidos automaticamente).
         Formatos aceitos: WAV, MP3, OGG, WebM, M4A, FLAC.
       </div>
-      <div class="upload-area" onclick="document.getElementById('cv-file-in').click()"
+      <div class="upload-area" role="button" tabindex="0" aria-label="Escolher arquivo de áudio"
+           onclick="document.getElementById('cv-file-in').click()"
+           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}"
            ondragover="event.preventDefault();this.classList.add('drag')"
            ondragleave="this.classList.remove('drag')"
            ondrop="handleRefDrop(event)">
@@ -896,14 +927,14 @@
 
 <!-- Edit style prompt -->
 <div class="overlay" id="m-prompt">
-  <div class="modal" style="width:480px">
+  <div class="modal" role="dialog" aria-modal="true" style="width:480px">
     <div class="modal-hd">
       <div class="modal-title">✏ Instrução de estilo — <span id="mp-name"></span></div>
-      <button class="btn btn-ghost btn-sm" onclick="closeM('m-prompt')">✕</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeM('m-prompt')" aria-label="Fechar">✕</button>
     </div>
     <input type="hidden" id="mp-vid">
     <div class="fgrp">
-      <label class="lbl">Instrução padrão <span class="xs muted">(em inglês)</span></label>
+      <label class="lbl" for="mp-prompt">Instrução padrão</label>
       <textarea id="mp-prompt" style="min-height:80px"
         placeholder="Ex.: Speak with clear Brazilian Portuguese pronunciation, careful diction and natural intonation."></textarea>
       <div class="fhint">Aplicada em toda síntese desta voz. Pode ser sobreposta pelos chips de estilo na síntese.</div>
@@ -911,9 +942,9 @@
     <div class="fgrp" style="margin-bottom:0">
       <label class="lbl xs muted">Atalhos de pronúncia pt-BR</label>
       <div class="chip-grp" style="margin-top:6px">
-        <span class="chip" onclick="appendPrompt('Speak with clear Brazilian Portuguese pronunciation and natural intonation.')">Pt-BR geral</span>
-        <span class="chip" onclick="appendPrompt('Pronounce all words carefully with native Brazilian Portuguese accent.')">Sotaque nativo</span>
-        <span class="chip" onclick="appendPrompt('Speak slowly and articulate each word clearly.')">Articulação</span>
+        <button type="button" class="chip" onclick="appendPrompt('Speak with clear Brazilian Portuguese pronunciation and natural intonation.')">Pt-BR geral</button>
+        <button type="button" class="chip" onclick="appendPrompt('Pronounce all words carefully with native Brazilian Portuguese accent.')">Sotaque nativo</button>
+        <button type="button" class="chip" onclick="appendPrompt('Speak slowly and articulate each word clearly.')">Articulação</button>
       </div>
     </div>
     <div class="modal-ft">
@@ -923,7 +954,7 @@
   </div>
 </div>
 
-<div id="toasts"></div>
+<div id="toasts" role="status" aria-live="polite"></div>
 
 <script>
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -956,10 +987,9 @@ const TITLES = {
 };
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-function init() {
-  updTokBadge();
+async function init() {
   renderHist();
-  if (_tok) {
+  if (await validarToken()) {
     loadVoicesSel();
     loadVoices();
   }
@@ -1012,34 +1042,70 @@ function nav(page, pushHash = true) {
 }
 
 // ─── Token ────────────────────────────────────────────────────────────────────
-function updTokBadge() {
+// estado: 'sem' | 'conferindo' | 'ok' | 'invalido' | 'sem-escopo' | 'offline'
+function updTokBadge(estado = _tok ? 'ok' : 'sem') {
   const b = document.getElementById('tok-badge');
   const t = document.getElementById('tok-txt');
-  if (_tok) { b.className = 'tok-badge ok'; t.textContent = 'Token ativo'; }
-  else { b.className = 'tok-badge no'; t.textContent = 'Sem token'; }
+  const textos = {
+    sem: 'Sem token', conferindo: 'Conferindo token…', ok: 'Token ativo',
+    invalido: 'Token inválido', 'sem-escopo': 'Token sem acesso a vozes',
+    offline: 'Servidor fora do ar',
+  };
+  b.className = 'tok-badge ' + (estado === 'ok' ? 'ok' : 'no');
+  t.textContent = textos[estado] || textos.sem;
 }
 
-function saveToken() {
+// Confere o token com uma chamada real; antes, qualquer texto virava "Token ativo".
+async function validarToken() {
+  if (!_tok) { updTokBadge('sem'); semTokenNoSelect(); return false; }
+  updTokBadge('conferindo');
+  try {
+    const r = await fetch('/v1/voices', { headers: { Authorization: 'Bearer ' + _tok } });
+    if (r.ok) { updTokBadge('ok'); return true; }
+    updTokBadge(r.status === 403 ? 'sem-escopo' : 'invalido');
+  } catch { updTokBadge('offline'); }
+  return false;
+}
+
+function semTokenNoSelect() {
+  document.getElementById('s-voice').innerHTML = '<option value="">Configure um token em Configurações</option>';
+}
+
+async function saveToken() {
   _tok = document.getElementById('cfg-token').value.trim();
   if (_tok) sessionStorage.setItem('kv_token', _tok);
   else sessionStorage.removeItem('kv_token');
-  updTokBadge();
   closeM('m-settings');
-  toast('Token salvo', 'ok');
-  loadVoicesSel();
+  if (await validarToken()) {
+    toast('Token salvo', 'ok');
+    loadVoicesSel();
+  } else if (_tok) {
+    toast(document.getElementById('tok-txt').textContent, 'err');
+  }
 }
 
 function copyTok() {
-  navigator.clipboard.writeText(_newTok).then(() => toast('Copiado!', 'ok'));
+  const fallback = () => {
+    // Clipboard API só existe em contexto seguro (HTTPS ou localhost).
+    const range = document.createRange();
+    range.selectNodeContents(document.getElementById('tok-reveal'));
+    const sel = getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    toast('Token selecionado: copie com Ctrl+C', 'info');
+  };
+  if (!navigator.clipboard?.writeText) { fallback(); return; }
+  navigator.clipboard.writeText(_newTok).then(() => toast('Copiado!', 'ok'), fallback);
 }
 
-function useTok() {
+async function useTok() {
   _tok = _newTok;
   sessionStorage.setItem('kv_token', _tok);
-  updTokBadge();
   closeM('m-token-ok');
-  toast('Token ativado!', 'ok');
-  loadVoicesSel();
+  if (await validarToken()) {
+    toast('Token ativado!', 'ok');
+    loadVoicesSel();
+  }
 }
 
 // ─── API ──────────────────────────────────────────────────────────────────────
@@ -1051,13 +1117,26 @@ async function api(method, path, body, raw = false) {
     opts.body = JSON.stringify(body);
   }
   const r = await fetch(path, opts);
-  if (!r.ok) {
-    const e = await r.json().catch(() => ({ detail: r.statusText }));
-    throw new Error(e.detail || `HTTP ${r.status}`);
-  }
+  if (!r.ok) throw new Error(await lerErro(r));
   if (raw) return r;
   if (r.status === 204) return null;
   return r.json();
+}
+
+// 422 do FastAPI traz detail como lista de {loc, msg}; virava "[object Object]".
+async function lerErro(r) {
+  const corpo = await r.json().catch(() => null);
+  const d = corpo?.detail;
+  if (Array.isArray(d)) {
+    return d.map(x => {
+      const campo = Array.isArray(x.loc) ? x.loc[x.loc.length - 1] : '';
+      return campo ? `${campo}: ${x.msg}` : x.msg;
+    }).join('; ');
+  }
+  if (typeof d === 'string' && d) return d;
+  if (r.status === 401) return 'Token inválido ou revogado';
+  if (r.status === 403) return 'Token sem permissão para esta ação';
+  return `HTTP ${r.status}${r.statusText ? ' ' + r.statusText : ''}`;
 }
 
 // ─── Synthesize ───────────────────────────────────────────────────────────────
@@ -1067,8 +1146,12 @@ function updCtr(el) {
 
 function setFmt(fmt, btn) {
   _fmt = fmt;
-  btn.closest('.seg').querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+  btn.closest('.seg').querySelectorAll('.btn').forEach(b => {
+    b.classList.remove('active');
+    b.setAttribute('aria-pressed', 'false');
+  });
   btn.classList.add('active');
+  btn.setAttribute('aria-pressed', 'true');
 }
 
 function selStyle(val, el) {
@@ -1132,21 +1215,11 @@ async function synthesize() {
     const dms = res.headers.get('X-Duration-Ms');
     const rid = res.headers.get('X-Request-Id');
     const ext = { ogg_opus: 'ogg', mp3_44100: 'mp3', wav_24000: 'wav' }[_fmt] || 'bin';
-    const audio = document.getElementById('r-audio');
-    audio.src = url;
-    document.getElementById('r-meta').innerHTML = `
-      ${amItem('Duração', dms ? (dms / 1000).toFixed(2) + 's' : '—')}
-      ${amItem('Latência', elapsed + 'ms')}
-      ${amItem('Formato', _fmt)}
-      ${amItem('Chars', text.length)}
-      ${amItem('ID', rid ? rid.slice(0, 8) + '…' : '—')}
-    `;
-    const dl = document.getElementById('r-dl');
-    dl.href = url; dl.download = `kvoice_${Date.now()}.${ext}`;
-    document.getElementById('result-card').style.display = '';
-    audio.play().catch(() => {});
     const vname = _voices.find(v => v.id === vid)?.name || vid;
-    addHist({ text, vid, vname, fmt: _fmt, url, ext, dms, rid, ts: Date.now() });
+    const item = { text, vid, vname, fmt: _fmt, url, ext, dms, rid, elapsed, ts: Date.now() };
+    showResult(item);
+    document.getElementById('r-audio').play().catch(() => {});
+    addHist(item);
     toast('Áudio gerado!', 'ok');
   } catch (e) { toast('Erro: ' + e.message, 'err'); }
   finally {
@@ -1164,9 +1237,28 @@ function amItem(lbl, val) {
   return `<div class="am-item"><div class="am-lbl">${lbl}</div><div class="am-val">${esc(String(val))}</div></div>`;
 }
 
+function showResult(h) {
+  document.getElementById('r-audio').src = h.url;
+  document.getElementById('r-meta').innerHTML = `
+    ${amItem('Duração', h.dms ? (h.dms / 1000).toFixed(2) + 's' : '—')}
+    ${amItem('Tempo total', h.elapsed != null ? h.elapsed + 'ms' : '—')}
+    ${amItem('Formato', h.fmt)}
+    ${amItem('Chars', h.text.length)}
+    ${amItem('ID', h.rid ? h.rid.slice(0, 8) + '…' : '—')}
+  `;
+  const dl = document.getElementById('r-dl');
+  dl.href = h.url;
+  dl.download = `kvoice_${h.ts}.${h.ext}`;
+  document.getElementById('result-card').style.display = '';
+}
+
 function addHist(item) {
   _history.unshift(item);
-  if (_history.length > 10) _history = _history.slice(0, 10);
+  if (_history.length > 10) {
+    // O áudio que sai do histórico deixa de ocupar memória na aba.
+    _history.slice(10).forEach(h => { if (h.url) URL.revokeObjectURL(h.url); });
+    _history = _history.slice(0, 10);
+  }
   const save = _history.map(h => ({ ...h, url: null }));
   try { localStorage.setItem('kv_hist', JSON.stringify(save)); } catch {}
   renderHist();
@@ -1179,13 +1271,13 @@ function renderHist() {
     return;
   }
   el.innerHTML = _history.slice(0, 6).map((h, i) => `
-    <div class="hist-item" onclick="restoreHist(${i})">
+    <div class="hist-item" role="button" tabindex="0" onclick="restoreHist(${i})" onkeydown="if(event.key==='Enter')restoreHist(${i})">
       <div class="hist-ico">🔊</div>
       <div class="hist-meta">
         <div class="hist-txt">${esc(h.text)}</div>
         <div class="hist-info">${esc(h.vname)} · ${h.fmt} · ${new Date(h.ts).toLocaleTimeString('pt-BR')}</div>
       </div>
-      ${h.url ? `<a href="${h.url}" download="kvoice.${h.ext}" onclick="event.stopPropagation()" class="btn btn-ghost btn-xs">⬇</a>` : ''}
+      ${h.url ? `<a href="${h.url}" download="kvoice_${h.ts}.${h.ext}" onclick="event.stopPropagation()" class="btn btn-ghost btn-xs" aria-label="Baixar áudio">⬇</a>` : ''}
     </div>
   `).join('');
 }
@@ -1196,10 +1288,7 @@ function restoreHist(i) {
   document.getElementById('s-text').value = h.text;
   updCtr(document.getElementById('s-text'));
   if (h.vid) { document.getElementById('s-voice').value = h.vid; updateStyleVisibility(); }
-  if (h.url) {
-    document.getElementById('r-audio').src = h.url;
-    document.getElementById('result-card').style.display = '';
-  }
+  if (h.url) showResult(h);
 }
 
 // ─── Voices ───────────────────────────────────────────────────────────────────
@@ -1208,7 +1297,7 @@ async function loadVoicesSel() {
   try {
     _voices = await api('GET', '/v1/voices') || [];
     sel.innerHTML = _voices.length
-      ? _voices.map(v => `<option value="${v.id}">${esc(v.name)} (${v.language})</option>`).join('')
+      ? _voices.map(v => `<option value="${esc(v.id)}">${esc(v.name)} (${esc(v.language)})</option>`).join('')
       : '<option value="">Nenhuma voz cadastrada</option>';
     updateStyleVisibility();
   } catch { sel.innerHTML = '<option value="">Erro ao carregar vozes</option>'; }
@@ -1234,24 +1323,36 @@ function renderVoices() {
     g.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-ico">🔍</div><div class="empty-txt">Nenhuma voz encontrada</div></div>';
     return;
   }
+  // Dados do servidor só entram escapados, e os botões levam o id em data-vid: nome ou id
+  // com aspas quebrava (ou executava) o onclick montado por concatenação.
   g.innerHTML = list.map(v => `
     <div class="voice-card">
       <div class="vc-name">${esc(v.name)}</div>
       <div class="vc-badges">
-        <span class="badge bb">${v.language}</span>
-        ${v.gender ? `<span class="badge bp">${v.gender}</span>` : ''}
-        ${v.style ? `<span class="badge bk">${v.style}</span>` : ''}
-        ${v.age_range ? `<span class="badge by">${v.age_range}</span>` : ''}
-        <span class="badge ${v.origin === 'preset' ? 'bg' : v.origin === 'clone' ? 'bp' : 'bb'}">${v.origin}</span>
+        <span class="badge bb">${esc(v.language)}</span>
+        ${v.gender ? `<span class="badge bp">${esc(v.gender)}</span>` : ''}
+        ${v.style ? `<span class="badge bk">${esc(v.style)}</span>` : ''}
+        ${v.age_range ? `<span class="badge by">${esc(v.age_range)}</span>` : ''}
+        <span class="badge ${v.origin === 'preset' ? 'bg' : v.origin === 'clone' ? 'bp' : 'bb'}">${esc(v.origin)}</span>
       </div>
       <div class="vc-foot" style="gap:6px">
-        ${v.origin === 'clone' ? `<button class="btn btn-ghost btn-sm" onclick="openCloneUpdateM('${v.id}','${esc(v.name)}')">🔄 Ref.</button>` : ''}
-        <button class="btn btn-ghost btn-sm" onclick="openPromptM('${v.id}','${esc(v.name)}',${JSON.stringify(v.style_prompt||'')})">✏ Instrução</button>
-        <button class="btn btn-secondary btn-sm" onclick="testVoice('${v.id}')">▶ Testar</button>
+        ${v.origin === 'clone' ? `<button type="button" class="btn btn-ghost btn-sm" data-act="ref" data-vid="${esc(v.id)}">🔄 Ref.</button>` : ''}
+        <button type="button" class="btn btn-ghost btn-sm" data-act="prompt" data-vid="${esc(v.id)}">✏ Instrução</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-act="test" data-vid="${esc(v.id)}">▶ Testar</button>
       </div>
     </div>
   `).join('');
 }
+
+document.getElementById('voice-grid').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const v = _voices.find(x => x.id === btn.dataset.vid);
+  if (!v) return;
+  if (btn.dataset.act === 'ref') openCloneUpdateM(v.id, v.name);
+  else if (btn.dataset.act === 'prompt') openPromptM(v.id, v.name, v.style_prompt || '');
+  else if (btn.dataset.act === 'test') testVoice(v.id);
+});
 
 function filterVoices() { renderVoices(); }
 
@@ -1267,7 +1368,9 @@ function updateStyleVisibility() {
   const voice = _voices.find(v => v.id === vid);
   const isClone = voice?.origin === 'clone';
   document.getElementById('style-chips').style.display = '';
-  document.getElementById('style-custom').style.display = 'none';
+  // O campo livre continua visível enquanto "Personalizado" estiver escolhido: escondido,
+  // o texto seguia indo na síntese sem a pessoa ver.
+  document.getElementById('style-custom').style.display = _styleVal === '__custom__' ? '' : 'none';
   document.getElementById('style-clone-note').style.display = isClone ? '' : 'none';
   document.getElementById('clone-warn').style.display = isClone ? '' : 'none';
 }
@@ -1399,6 +1502,8 @@ async function createClient() {
 function openNewTokM(cid) {
   document.getElementById('nt-cid').value = cid;
   document.getElementById('nt-name').value = '';
+  const padrao = new Set(['tts:batch', 'voices:read']);
+  document.querySelectorAll('[name="scope"]').forEach(c => { c.checked = padrao.has(c.value); });
   openM('m-new-token');
 }
 
@@ -1521,6 +1626,10 @@ async function loadHealth() {
     const el = document.getElementById('h-status');
     el.textContent = h.status === 'ok' ? '✓ ok' : '✗';
     el.className = 'stat-val ' + (h.status === 'ok' ? 'cv-green' : 'cv-red');
+    // /health já traz motor e fila; as contagens de stream do Prometheus não incluem
+    // as sínteses em lote que o painel faz.
+    document.getElementById('h-engine').textContent = h.engine || '—';
+    document.getElementById('h-streams').textContent = `${h.active ?? 0} / ${h.queued ?? 0}`;
   } catch {
     document.getElementById('h-status').textContent = '✗';
     document.getElementById('h-status').className = 'stat-val cv-red';
@@ -1528,8 +1637,6 @@ async function loadHealth() {
   try {
     const raw = await fetch('/metrics').then(r => r.text());
     document.getElementById('h-metrics').textContent = raw;
-    const streams = raw.match(/kvoice_streams_active\s+([\d.]+)/)?.[1] ?? '0';
-    document.getElementById('h-streams').textContent = streams;
     let errs = '0';
     for (const m of raw.matchAll(/kvoice_streams_errors_total\{[^}]*\}\s+([\d.]+)/g)) {
       errs = String(parseFloat(errs) + parseFloat(m[1]));
@@ -1545,15 +1652,41 @@ async function loadHealth() {
 }
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
+const _modalStack = [];
+
 function openM(id) {
-  document.getElementById(id).classList.add('open');
+  const ov = document.getElementById(id);
+  ov.classList.add('open');
   if (id === 'm-settings') document.getElementById('cfg-token').value = _tok;
-  document.getElementById(id).onclick = e => { if (e.target.id === id) closeM(id); };
+  ov.onclick = e => { if (e.target.id === id) closeM(id); };
+  if (!_modalStack.includes(id)) _modalStack.push(id);
+  ov._voltaFoco = document.activeElement;
+  const primeiro = ov.querySelector('input:not([type=hidden]),textarea,select,button.btn-primary');
+  setTimeout(() => primeiro?.focus(), 50);
 }
-function closeM(id) { document.getElementById(id).classList.remove('open'); }
+
+function closeM(id) {
+  const ov = document.getElementById(id);
+  if (!ov.classList.contains('open')) return;
+  // Fechar por Esc, fundo ou ✕ passa sempre por aqui: o microfone e o token exibido
+  // não sobrevivem ao modal.
+  if (id === 'm-clone-voice') stopRec();
+  if (id === 'm-token-ok') { _newTok = ''; document.getElementById('tok-reveal').textContent = ''; }
+  ov.classList.remove('open');
+  const i = _modalStack.lastIndexOf(id);
+  if (i >= 0) _modalStack.splice(i, 1);
+  if (ov.contains(document.activeElement)) document.activeElement.blur();
+  ov._voltaFoco?.focus?.();
+}
+
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape')
-    document.querySelectorAll('.overlay.open').forEach(o => o.classList.remove('open'));
+  if (e.key === 'Escape' && _modalStack.length) {
+    closeM(_modalStack[_modalStack.length - 1]);
+  } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)
+             && document.getElementById('page-synthesize').classList.contains('active')
+             && !_modalStack.length) {
+    synthesize();
+  }
 });
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -1591,6 +1724,10 @@ async function createVoice() {
   const name = document.getElementById('nv-name').value.trim();
   const id = document.getElementById('nv-id').value.trim() || slugify(name);
   if (!name) { toast('Nome é obrigatório', 'err'); return; }
+  if (!/^[a-z0-9][a-z0-9_-]*$/.test(id)) {
+    toast('ID precisa ter só letras minúsculas, números, - ou _', 'err');
+    return;
+  }
   const body = {
     id, name,
     language: document.getElementById('nv-lang').value,
@@ -1650,7 +1787,6 @@ function openCloneUpdateM(vid, vname) {
 }
 
 function closeCloneM() {
-  stopRec();
   closeM('m-clone-voice');
 }
 
@@ -1661,9 +1797,18 @@ function setCvTab(tab, el) {
   document.getElementById('cv-panel-file').style.display = tab === 'file' ? '' : 'none';
 }
 
+let _pedindoMic = false;
+
 async function startRec() {
+  // Clique duplo abria dois streams e o primeiro nunca era parado.
+  if (_pedindoMic || (_mediaRec && _mediaRec.state === 'recording')) return;
+  _pedindoMic = true;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (!document.getElementById('m-clone-voice').classList.contains('open')) {
+      stream.getTracks().forEach(t => t.stop());
+      return;
+    }
     _recChunks = [];
     const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
     _refExt = mimeType.includes('webm') ? 'webm' : 'ogg';
@@ -1681,6 +1826,8 @@ async function startRec() {
     document.getElementById('cv-rec-active').style.display = '';
   } catch (e) {
     toast('Microfone indisponível: ' + e.message, 'err');
+  } finally {
+    _pedindoMic = false;
   }
 }
 
@@ -1706,7 +1853,11 @@ function handleRefDrop(e) {
   showPreview(URL.createObjectURL(file), file.name);
 }
 
+let _previewUrl = null;
+
 function showPreview(url, name) {
+  if (_previewUrl) URL.revokeObjectURL(_previewUrl);
+  _previewUrl = url;
   document.getElementById('cv-audio').src = url;
   document.getElementById('cv-file-name').textContent = name;
   document.getElementById('cv-preview').style.display = '';
@@ -1715,8 +1866,9 @@ function showPreview(url, name) {
 function clearRef() {
   stopRec();
   _refBlob = null;
+  if (_previewUrl) { URL.revokeObjectURL(_previewUrl); _previewUrl = null; }
   document.getElementById('cv-preview').style.display = 'none';
-  document.getElementById('cv-audio').src = '';
+  document.getElementById('cv-audio').removeAttribute('src');
   document.getElementById('cv-file-name').textContent = '';
   document.getElementById('cv-rec-active').style.display = 'none';
   document.getElementById('cv-rec-idle').style.display = '';
@@ -1733,16 +1885,21 @@ async function submitClone() {
   if (!refText) { toast('Digite a transcrição do áudio', 'err'); return; }
   if (!cName || !cEmail) { toast('Preencha nome e e-mail para o consentimento', 'err'); return; }
 
+  let vname = '';
+  let newId = '';
+  if (!vid) {
+    vname = document.getElementById('cv-vname').value.trim();
+    if (!vname) { toast('Nome da voz é obrigatório', 'err'); return; }
+    newId = document.getElementById('cv-auto-id').value || slugify(vname);
+    if (!newId) { toast('O nome precisa ter letras ou números', 'err'); return; }
+  }
+
   const btn = document.getElementById('cv-submit');
   const originalLabel = btn.textContent;
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span> Enviando…';
   try {
-    // Cria a voz se for um clone novo
     if (!vid) {
-      const vname = document.getElementById('cv-vname').value.trim();
-      if (!vname) { toast('Nome da voz é obrigatório', 'err'); return; }
-      const newId = document.getElementById('cv-auto-id').value || slugify(vname);
       const created = await api('POST', '/admin/voices', {
         id: newId, name: vname,
         language: document.getElementById('cv-lang').value,
@@ -1750,6 +1907,11 @@ async function submitClone() {
       });
       if (!created) return;
       vid = created.id;
+      // Se o upload abaixo falhar, a nova tentativa envia para esta voz em vez de criar
+      // outra (que daria 409 e deixaria esta sem referência).
+      document.getElementById('cv-vid').value = vid;
+      document.getElementById('cv-title').textContent = `🔄 Enviar referência — ${vname}`;
+      document.getElementById('cv-new-fields').style.display = 'none';
     }
 
     const fd = new FormData();
@@ -1757,15 +1919,12 @@ async function submitClone() {
     fd.append('ref_text', refText);
     fd.append('consenter_name', cName);
     fd.append('consenter_email', cEmail);
-    const r = await fetch(`/admin/voices/${vid}/reference-audio`, {
+    const r = await fetch(`/admin/voices/${encodeURIComponent(vid)}/reference-audio`, {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + _tok },
       body: fd,
     });
-    if (!r.ok) {
-      const e = await r.json().catch(() => ({ detail: r.statusText }));
-      throw new Error(e.detail || `HTTP ${r.status}`);
-    }
+    if (!r.ok) throw new Error(await lerErro(r));
     closeCloneM();
     toast('Voz clonada com sucesso!', 'ok');
     loadVoices(); loadVoicesSel();
@@ -1773,7 +1932,7 @@ async function submitClone() {
     toast('Erro: ' + e.message, 'err');
   } finally {
     btn.disabled = false;
-    btn.textContent = originalLabel;
+    btn.textContent = document.getElementById('cv-vid').value ? 'Enviar referência' : originalLabel;
   }
 }
 
@@ -1806,7 +1965,8 @@ async function savePrompt() {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function esc(s) {
   return String(s ?? '')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 function fmtDt(iso) {
   if (!iso) return '—';

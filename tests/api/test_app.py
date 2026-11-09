@@ -154,3 +154,22 @@ def test_falha_ao_carregar_o_qwen_impede_o_servidor_de_subir(
     finally:
         get_settings.cache_clear()
         clear_engine()
+
+
+@pytest.mark.parametrize(
+    "campos",
+    [
+        {"age_range": "x" * 33},
+        {"gender": "x" * 33},
+        {"language": "x" * 17},
+        {"id": "../referencias"},
+        {"id": "voz com espaco"},
+    ],
+)
+def test_voz_com_campo_fora_do_limite_da_coluna_e_rejeitada(campos: dict[str, str]) -> None:
+    from kvoice.api.schemas import VoiceCreate
+
+    base = {"id": "v_ok", "name": "Voz", "origin": "preset"}
+    VoiceCreate.model_validate(base)
+    with pytest.raises(ValidationError):
+        VoiceCreate.model_validate({**base, **campos})
