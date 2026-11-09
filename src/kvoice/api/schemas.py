@@ -62,14 +62,16 @@ class TokenResponse(BaseModel):
 
 
 class VoiceCreate(BaseModel):
-    id: str = Field(min_length=1, max_length=128)
+    # Limites iguais às colunas: texto maior virava 500 do banco em vez de 422. O id entra
+    # no caminho do áudio de referência, então só letras, números, "-" e "_".
+    id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
     name: str = Field(min_length=1, max_length=255)
-    gender: str | None = None
-    age_range: str | None = None
-    style: str | None = None
-    language: str = "pt-BR"
+    gender: str | None = Field(default=None, max_length=32)
+    age_range: str | None = Field(default=None, max_length=32)
+    style: str | None = Field(default=None, max_length=64)
+    language: str = Field(default="pt-BR", max_length=16)
     origin: VoiceOrigin
-    model_id: str | None = None
+    model_id: str | None = Field(default=None, max_length=255)
     style_prompt: str | None = None
 
 
