@@ -22,9 +22,37 @@ _RE_EMOJI = re.compile(
     "]+",
     flags=re.UNICODE,
 )
-_RE_URL = re.compile(r"https?://\S+|www\.\S+")
+_RE_URL = re.compile(
+    r"https?://\S+|www\.\S+"
+    r"|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|gov|edu|io|app|br)\b(?:/\S*)?",
+    re.IGNORECASE,
+)
+_RE_EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")
+_RE_PONTUACAO_FINAL = re.compile(r"[.,;:!?)]+$")
 _RE_RETICENCIAS = re.compile(r"\.{3,}|…")
-_RE_PONTO_REPETIDO = re.compile(r"([!?]){2,}")
+_RE_PONTO_REPETIDO = re.compile(r"[!?]{2,}")
+_SEPARADORES_ENDERECO = {".": "ponto", "/": "barra", "@": "arroba", "_": "underline", "-": "hífen"}
+_PARTES_ENDERECO = {"www": "dáblio dáblio dáblio", "br": "bê erre"}
+# Unidade colada ou separada do número: "5km", "500 ml", "1,5L". Singular quando o
+# número é 1. "m" fica de fora (metro ou minuto) e "h" fica com as regras de hora.
+_UNIDADES: dict[str, tuple[str, str]] = {
+    "km/h": ("quilômetro por hora", "quilômetros por hora"),
+    "km": ("quilômetro", "quilômetros"),
+    "kg": ("quilo", "quilos"),
+    "mg": ("miligrama", "miligramas"),
+    "g": ("grama", "gramas"),
+    "ml": ("mililitro", "mililitros"),
+    "l": ("litro", "litros"),
+    "cm": ("centímetro", "centímetros"),
+    "mm": ("milímetro", "milímetros"),
+    "min": ("minuto", "minutos"),
+}
+_RE_UNIDADE = re.compile(
+    r"(?<![\w.,])(\d+(?:[.,]\d+)?)\s*(km/h|km|kg|mg|g|ml|l|cm|mm|min)\b(?!/)", re.IGNORECASE
+)
+_RE_HORA_MIN = re.compile(r"\b(\d{1,2})h(\d{2})min\b")
+_RE_DIMENSAO = re.compile(r"(?<![\w.,])(\d+)x(\d+)\b")
+_RE_VEZES = re.compile(r"(?<![\w.,])(\d+)x\b", re.IGNORECASE)
 
 # Caracteres tipográficos que confundem o TTS
 _TIPOGRAFICOS: list[tuple[str, str]] = [
@@ -48,6 +76,8 @@ _TIPOGRAFICOS: list[tuple[str, str]] = [
     ("↑", " "),
     ("↓", " "),
     ("§", "parágrafo "),
+    ("\ufe0f", ""),  # seletor de variação de emoji (❤️)
+    ("\u200d", ""),  # zero-width joiner (emoji composto)
 ]
 
 # Abreviações: (padrão, expansão) — ordem importa (mais específico antes)
@@ -87,7 +117,7 @@ _ABREVIACOES: list[tuple[re.Pattern[str], str]] = [
     # Endereços
     (re.compile(r"\bAv\.(?=\s)", re.IGNORECASE), "avenida"),
     (re.compile(r"\bR\.(?=\s[A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇ])"), "rua"),
-    (re.compile(r"\bApto\.?\b", re.IGNORECASE), "apartamento"),
+    (re.compile(r"\bApto\b\.?", re.IGNORECASE), "apartamento"),
     (re.compile(r"\bBl\.(?=\s)", re.IGNORECASE), "bloco"),
     # Jurídico / empresarial
     (re.compile(r"\bart\.(?=\s)", re.IGNORECASE), "artigo"),
@@ -114,7 +144,7 @@ _ABREVIACOES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bvs?\.", re.IGNORECASE), "versus"),
     (re.compile(r"\bcf\.", re.IGNORECASE), "conforme"),
     (re.compile(r"\bapud\b", re.IGNORECASE), "apude"),
-    (re.compile(r"\bn[°º]\s*"), "número "),
+    (re.compile(r"\b[Nn]\.?[°º]\.?\s*"), "número "),
 ]
 
 # Anglicismos com leitura pt-BR esperada (mais específico/longo antes)
@@ -268,14 +298,49 @@ _ANGLICISMOS: list[tuple[re.Pattern[str], str]] = [
 ]
 
 
+def _ler_endereco(endereco: str) -> str:
+    """URL ou e-mail por extenso: "site.com.br" → "site ponto com ponto bê erre"."""
+    endereco = re.sub(r"^https?://", "", endereco, flags=re.IGNORECASE)
+    endereco = re.split(r"[?#]", endereco)[0].rstrip("/")
+    palavras: list[str] = []
+    for parte in re.split(r"([./@_-])", endereco.lower()):
+        if not parte:
+            continue
+        palavras.append(_SEPARADORES_ENDERECO.get(parte) or _PARTES_ENDERECO.get(parte, parte))
+    return " ".join(palavras)
+
+
+def _endereco(m: re.Match[str]) -> str:
+    bruto = m.group(0)
+    final = _RE_PONTUACAO_FINAL.search(bruto)
+    sufixo = final.group(0) if final else ""
+    return _ler_endereco(bruto[: len(bruto) - len(sufixo)]) + sufixo
+
+
+def _pontuacao_repetida(m: re.Match[str]) -> str:
+    # "Sério?!" continua pergunta.
+    return "?" if "?" in m.group(0) else "!"
+
+
+def _unidade(m: re.Match[str]) -> str:
+    numero = m.group(1)
+    singular, plural = _UNIDADES[m.group(2).lower()]
+    return f"{numero} {singular if numero == '1' else plural}"
+
+
 def _preprocess(text: str) -> str:
-    """Remove URLs, emojis, normaliza caracteres tipográficos e expande abreviações."""
-    text = _RE_URL.sub("", text)
+    """Lê URLs e e-mails, remove emojis, normaliza tipografia e expande abreviações."""
+    text = _RE_EMAIL.sub(_endereco, text)
+    text = _RE_URL.sub(_endereco, text)
     text = _RE_EMOJI.sub(" ", text)
     for old, new in _TIPOGRAFICOS:
         text = text.replace(old, new)
     text = _RE_RETICENCIAS.sub(", ", text)
-    text = _RE_PONTO_REPETIDO.sub(r"\1", text)
+    text = _RE_PONTO_REPETIDO.sub(_pontuacao_repetida, text)
+    text = _RE_HORA_MIN.sub(r"\1h\2", text)
+    text = _RE_DIMENSAO.sub(r"\1 por \2", text)
+    text = _RE_VEZES.sub(r"\1 vezes", text)
+    text = _RE_UNIDADE.sub(_unidade, text)
     for pat, rep in _ABREVIACOES:
         text = pat.sub(rep, text)
     text = re.sub(r"  +", " ", text).strip()
@@ -498,13 +563,110 @@ _PALAVRAS_NATIVAS: dict[str, str] = {
     "CNPJ": "cê ene pê jota",
 }
 
+# Siglas que também são palavras ou nomes ("eu ia", "ai", "o doc", "Ted"): só trocadas
+# quando escritas em maiúscula. As demais valem em qualquer caixa ("pix", "cpf").
+_SO_MAIUSCULA = frozenset({"IA", "AI", "DOC", "TED", "SLA", "SUS", "RAM", "ROM", "IME", "LED"})
+_RE_PALAVRAS_NATIVAS = [
+    (
+        re.compile(rf"\b{re.escape(sigla)}\b", 0 if sigla in _SO_MAIUSCULA else re.IGNORECASE),
+        forma,
+    )
+    for sigla, forma in _PALAVRAS_NATIVAS.items()
+]
+
+# Substantivos femininos que costumam vir depois de número na fala de atendimento:
+# "duas parcelas", "vinte e uma horas", "duzentas pessoas".
+_FEMININOS = frozenset(
+    [
+        "hora",
+        "horas",
+        "parcela",
+        "parcelas",
+        "vez",
+        "vezes",
+        "pessoa",
+        "pessoas",
+        "semana",
+        "semanas",
+        "unidade",
+        "unidades",
+        "prestação",
+        "prestações",
+        "mensalidade",
+        "mensalidades",
+        "fatura",
+        "faturas",
+        "opção",
+        "opções",
+        "noite",
+        "noites",
+        "diária",
+        "diárias",
+        "vaga",
+        "vagas",
+        "caixa",
+        "caixas",
+        "peça",
+        "peças",
+        "conta",
+        "contas",
+        "linha",
+        "linhas",
+        "criança",
+        "crianças",
+        "página",
+        "páginas",
+        "tentativa",
+        "tentativas",
+        "cópia",
+        "cópias",
+        "nota",
+        "notas",
+        "ocorrência",
+        "ocorrências",
+        "libra",
+        "libras",
+        "cota",
+        "cotas",
+        "etapa",
+        "etapas",
+        "loja",
+        "lojas",
+        "cidade",
+        "cidades",
+        "empresa",
+        "empresas",
+    ]
+)
+_RE_PALAVRA_SEGUINTE = re.compile(r"\s+(\w+)")
+
+
+def _feminino_depois(m: re.Match[str]) -> bool:
+    seguinte = _RE_PALAVRA_SEGUINTE.match(m.string, m.end())
+    return seguinte is not None and seguinte.group(1).lower() in _FEMININOS
+
+
 # ---------------------------------------------------------------------------
 # Patterns (ordem importa: mais específico primeiro)
 # ---------------------------------------------------------------------------
 
 _RE_CELSIUS = re.compile(r"\b(\d+(?:[.,]\d+)?)\s*°C\b")
-_RE_MOEDA = re.compile(r"R\$\s*(\d{1,3}(?:\.\d{3})*),(\d{2})")
-_RE_MOEDA_INT = re.compile(r"R\$\s*(\d{1,3}(?:\.\d{3})*)\b")
+# R$ 1.500,00 · R$ 1500 · R$ 10,5 · R$ 2 mil · R$ 1,5 milhão
+_RE_MOEDA = re.compile(
+    r"R\$\s*(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2}))?(?![\d.,]\d|\d)"
+    r"(?:\s+(mil|milhão|milhões|bilhão|bilhões)\b)?"
+)
+# Decimal com ponto ("1.5", "10.50"): vira vírgula. Com até duas casas não colide com
+# separador de milhar, IP nem versão de três partes.
+_RE_DECIMAL_PONTO = re.compile(r"(?<![\d.,])(\d+)\.(\d{1,2})(?!\d|\.\d)")
+_RE_VERSAO = re.compile(r"\b(versão|v)\s*(\d+)\.(\d+)\b", re.IGNORECASE)
+_RE_DATA_ISO = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+_RE_MES_ANO = re.compile(r"(?<![\d/])(\d{1,2})/(\d{4})\b")
+# Intervalo com hífen: "7-10 dias", "10-20%", "8h-18h", "2020-2024". Telefone, CEP,
+# CPF, CNPJ e data ISO já saíram antes.
+_RE_INTERVALO = re.compile(
+    r"(?<![\w.,/-])(\d+(?:,\d+)?)(%|h)?\s?-\s?(\d+(?:,\d+)?)(%|h)?(?![\w.,/-])"
+)
 _RE_CNPJ = re.compile(r"\b(\d{2})\.(\d{3})\.(\d{3})/(\d{4})-(\d{2})\b")
 _RE_CPF = re.compile(r"\b(\d{3})\.(\d{3})\.(\d{3})-(\d{2})\b")
 _RE_CEP = re.compile(r"\b(\d{5})-(\d{3})\b")
@@ -521,7 +683,7 @@ _RE_TELEFONE_0800 = re.compile(r"(?<!\d)0([3589])00[\s-]?(\d{3})[\s-]?(\d{4})(?!
 _RE_DATA = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{2,4})\b")
 _RE_DATA_CURTA = re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})(?!/\d)")
 _RE_HORA_H = re.compile(r"\b(\d{1,2})h(\d{2})?\b")
-_RE_HORA = re.compile(r"\b(\d{1,2}):(\d{2})\b")
+_RE_HORA = re.compile(r"\b(\d{1,2}):(\d{2})h?\b")
 _RE_PORCENTAGEM = re.compile(r"\b(\d+)(?:,(\d+))?\s*%")
 _RE_DECIMAL = re.compile(r"(?<![\d.])(\d{1,3}(?:\.\d{3})+|\d+),(\d{1,4})\b")
 # Separador de milhar: 1.000, 2.008, 3.000.000.000. CPF e CNPJ já saíram antes;
@@ -532,6 +694,49 @@ _RE_ACRONIMO = re.compile(r"\b([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇ]{2,20})\b")
 _RE_CARDINAL = re.compile(r"\b\d+\b")
 _MIN_DIGITOS_CODIGO = 10
 _RE_SAFE = re.compile(r"(?<=[.!?])\s+")
+# Ponto que não fecha frase: abreviação ("Sr.", "apto."), inicial ("José R.") e item
+# de lista ("1."). Cortar ali partiria "O Sr. João" em duas falas e deixaria "Sr." cru.
+_ABREVIACOES_COM_PONTO = frozenset(
+    [
+        "sr",
+        "sra",
+        "srta",
+        "dr",
+        "dra",
+        "prof",
+        "profa",
+        "eng",
+        "enga",
+        "engº",
+        "adv",
+        "av",
+        "apto",
+        "bl",
+        "art",
+        "inc",
+        "obs",
+        "pág",
+        "págs",
+        "vol",
+        "v",
+        "vs",
+        "cf",
+        "nº",
+        "n°",
+        "n.º",
+        "ltda",
+        "cia",
+        "s.a",
+        "tel",
+        "cel",
+        "ex",
+        "p.ex",
+        "jd",
+        "pq",
+        "lt",
+    ]
+)
+_RE_TOKEN_ANTES = re.compile(r"(\S+)\.$")
 
 # ---------------------------------------------------------------------------
 # Handlers
@@ -549,7 +754,17 @@ def _celsius(m: re.Match[str]) -> str:
 
 def _moeda(m: re.Match[str]) -> str:
     reais = int(m.group(1).replace(".", ""))
-    cents = int(m.group(2))
+    casas = m.group(2) or ""
+    multiplicador = m.group(3)
+    if multiplicador:
+        # "R$ 2 mil" → "dois mil reais"; "R$ 1,5 milhão" → "um vírgula cinco milhão de reais"
+        valor = numero_para_palavras(reais)
+        if casas:
+            valor += " vírgula " + numero_para_palavras(int(casas))
+        de = "" if multiplicador == "mil" else " de"
+        return f"{valor} {multiplicador}{de} reais"
+    # Um dígito depois da vírgula é dezena de centavos: R$ 10,5 = dez reais e cinquenta.
+    cents = int(casas.ljust(2, "0")) if casas else 0
     partes: list[str] = []
     if reais:
         valor = numero_para_palavras(reais)
@@ -560,11 +775,26 @@ def _moeda(m: re.Match[str]) -> str:
     return " e ".join(partes) if partes else "zero reais"
 
 
-def _moeda_int(m: re.Match[str]) -> str:
-    n = int(m.group(1).replace(".", ""))
-    valor = numero_para_palavras(n)
-    sep = " de " if n >= 1_000_000 else " "
-    return valor + sep + ("real" if n == 1 else "reais")
+def _versao(m: re.Match[str]) -> str:
+    return f"{m.group(1)} {m.group(2)} ponto {m.group(3)}"
+
+
+def _dia(d: int) -> str:
+    return "primeiro" if d == 1 else numero_para_palavras(d)
+
+
+def _data_iso(m: re.Match[str]) -> str:
+    ano, mes, dia = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    if not (1 <= mes <= 12 and 1 <= dia <= 31):
+        return m.group(0)
+    return f"{_dia(dia)} de {MESES[mes]} de {numero_para_palavras(ano)}"
+
+
+def _mes_ano(m: re.Match[str]) -> str:
+    mes = int(m.group(1))
+    if not 1 <= mes <= 12:
+        return m.group(0)
+    return f"{MESES[mes]} de {numero_para_palavras(int(m.group(2)))}"
 
 
 def _cnpj(m: re.Match[str]) -> str:
@@ -608,21 +838,24 @@ def _data(m: re.Match[str]) -> str:
     if not (1 <= mes <= 12):
         return m.group(0)
     ano = int(m.group(3))
-    return f"{numero_para_palavras(d)} de {MESES[mes]} de {numero_para_palavras(ano)}"
+    return f"{_dia(d)} de {MESES[mes]} de {numero_para_palavras(ano)}"
 
 
 def _data_curta(m: re.Match[str]) -> str:
     d = int(m.group(1))
     mes = int(m.group(2))
+    if 1 <= d <= 12 and mes > 12 and len(m.group(2)) == 2:
+        # Validade de cartão: 12/25 → "dezembro de vinte e cinco"
+        return f"{MESES[d]} de {numero_para_palavras(mes)}"
     if not (1 <= mes <= 12) or not (1 <= d <= 31):
         return m.group(0)
-    return f"{numero_para_palavras(d)} de {MESES[mes]}"
+    return f"{_dia(d)} de {MESES[mes]}"
 
 
 def _hora(m: re.Match[str]) -> str:
     h = int(m.group(1))
     mi = int(m.group(2))
-    base = "uma hora" if h == 1 else f"{numero_para_palavras(h)} horas"
+    base = "uma hora" if h == 1 else f"{numero_para_palavras(h, fem=True)} horas"
     if mi == 0:
         return base
     return base + f" e {numero_para_palavras(mi)} minuto{'s' if mi != 1 else ''}"
@@ -630,7 +863,7 @@ def _hora(m: re.Match[str]) -> str:
 
 def _hora_h(m: re.Match[str]) -> str:
     h = int(m.group(1))
-    base = "uma hora" if h == 1 else f"{numero_para_palavras(h)} horas"
+    base = "uma hora" if h == 1 else f"{numero_para_palavras(h, fem=True)} horas"
     mi_str = m.group(2)
     if mi_str:
         mi = int(mi_str)
@@ -658,7 +891,7 @@ def _decimal(m: re.Match[str]) -> str:
 
 
 def _milhar(m: re.Match[str]) -> str:
-    return numero_para_palavras(int(m.group(1).replace(".", "")))
+    return numero_para_palavras(int(m.group(1).replace(".", "")), fem=_feminino_depois(m))
 
 
 def _ordinal(m: re.Match[str]) -> str:
@@ -691,7 +924,7 @@ def _cardinal(m: re.Match[str]) -> str:
     # se falam dígito a dígito.
     if len(s) >= _MIN_DIGITOS_CODIGO or (len(s) > 1 and s[0] == "0"):
         return digitos_separados(s)
-    return numero_para_palavras(int(s))
+    return numero_para_palavras(int(s), fem=_feminino_depois(m))
 
 
 # ---------------------------------------------------------------------------
@@ -705,31 +938,47 @@ def normalize(text: str, dict_: dict[str, str] | None = None) -> str:
         for termo, expansao in dict_.items():
             text = text.replace(termo, expansao)
     text = _RE_CELSIUS.sub(_celsius, text)
+    text = _RE_VERSAO.sub(_versao, text)
+    text = _RE_DECIMAL_PONTO.sub(r"\1,\2", text)
     text = _RE_MOEDA.sub(_moeda, text)
-    text = _RE_MOEDA_INT.sub(_moeda_int, text)
     text = _RE_CNPJ.sub(_cnpj, text)
     text = _RE_CPF.sub(_cpf, text)
     text = _RE_CEP.sub(_cep, text)
+    text = _RE_DATA_ISO.sub(_data_iso, text)
     text = _RE_TELEFONE_0800.sub(_telefone_0800, text)
     text = _RE_TELEFONE.sub(_telefone, text)
     text = _RE_TELEFONE_SEM_PARENTESES.sub(_telefone, text)
     text = _RE_TELEFONE_COLADO.sub(_telefone, text)
     text = _RE_TELEFONE_SEM_DDD.sub(_telefone_sem_ddd, text)
+    text = _RE_INTERVALO.sub(r"\1\2 a \3\4", text)
     text = _RE_DATA.sub(_data, text)
+    text = _RE_MES_ANO.sub(_mes_ano, text)
     text = _RE_DATA_CURTA.sub(_data_curta, text)
-    text = _RE_HORA_H.sub(_hora_h, text)
     text = _RE_HORA.sub(_hora, text)
+    text = _RE_HORA_H.sub(_hora_h, text)
     text = _RE_PORCENTAGEM.sub(_porcentagem, text)
     text = _RE_DECIMAL.sub(_decimal, text)
     text = _RE_MILHAR.sub(_milhar, text)
     text = _RE_ORDINAL.sub(_ordinal, text)
-    for sigla, forma in _PALAVRAS_NATIVAS.items():
-        text = re.sub(rf"\b{re.escape(sigla)}\b", forma, text, flags=re.IGNORECASE)
+    for padrao, forma in _RE_PALAVRAS_NATIVAS:
+        text = padrao.sub(forma, text)
     for pat, rep in _ANGLICISMOS:
         text = pat.sub(rep, text)
     text = _RE_ACRONIMO.sub(_acronimo, text)
     text = _RE_CARDINAL.sub(_cardinal, text)
     return text
+
+
+def _fecha_frase(text: str, fim: int) -> bool:
+    antes = _RE_TOKEN_ANTES.search(text, 0, fim)
+    if antes is None:
+        return True
+    token = antes.group(1).lower()
+    if token in _ABREVIACOES_COM_PONTO:
+        return False
+    # Inicial ("José R.") e item de lista ("1.") esperam mais texto: esperar à toa só
+    # atrasa a fala, cortar errado a parte em duas.
+    return not (token.isdigit() or (len(token) == 1 and token.isalpha()))
 
 
 def normalize_incremental(
@@ -744,7 +993,8 @@ def normalize_incremental(
     """
     last: re.Match[str] | None = None
     for m in _RE_SAFE.finditer(text):
-        last = m
+        if _fecha_frase(text, m.start()):
+            last = m
     if last is None:
         return "", text
     pos = last.end()

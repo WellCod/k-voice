@@ -179,7 +179,7 @@ casos:
 
   - id: data_primeiro
     entrada: "01/01/2024"
-    esperado: "um de janeiro de dois mil e vinte e quatro"
+    esperado: "primeiro de janeiro de dois mil e vinte e quatro"
 
   # -----------------------------------------------------------------------
   # Horas
@@ -283,7 +283,7 @@ casos:
 
   - id: milhar_e_centena
     entrada: "10.500 unidades"
-    esperado: "dez mil e quinhentos unidades"
+    esperado: "dez mil e quinhentas unidades"
 
   - id: decimal_com_milhar
     entrada: "1.234,56 metros"
@@ -427,3 +427,219 @@ casos:
     incremental: true
     pronto: "Olá!"
     pendente: "Seu número é (11) 9"
+
+  # -----------------------------------------------------------------------
+  # Revisão: siglas que são palavras, gênero, moeda, endereços, unidades,
+  # intervalos e datas
+  # -----------------------------------------------------------------------
+  - id: sigla_ia_minuscula_e_verbo
+    entrada: "eu ia te ligar amanhã"
+    esperado: "eu ia te ligar amanhã"
+
+  - id: sigla_ai_interjeicao
+    entrada: "Ai, que susto"
+    esperado: "Ai, que susto"
+
+  - id: sigla_doc_minusculo
+    entrada: "o doc está anexo"
+    esperado: "o doc está anexo"
+
+  - id: sigla_ted_nome
+    entrada: "Ted Mosby"
+    esperado: "Ted Mosby"
+
+  - id: sigla_ia_maiuscula
+    entrada: "IA generativa"
+    esperado: "i á generativa"
+
+  - id: feminino_hora_h
+    entrada: "22h"
+    esperado: "vinte e duas horas"
+
+  - id: feminino_hora_dois_pontos
+    entrada: "às 2:00"
+    esperado: "às duas horas"
+
+  - id: feminino_parcelas
+    entrada: "em 2 parcelas"
+    esperado: "em duas parcelas"
+
+  - id: feminino_vezes
+    entrada: "2 vezes"
+    esperado: "duas vezes"
+
+  - id: feminino_centenas
+    entrada: "200 pessoas"
+    esperado: "duzentas pessoas"
+
+  - id: feminino_uma_parcela
+    entrada: "1 parcela"
+    esperado: "uma parcela"
+
+  - id: feminino_milhar
+    entrada: "2.000 pessoas"
+    esperado: "duas mil pessoas"
+
+  - id: feminino_vinte_e_uma
+    entrada: "21 horas"
+    esperado: "vinte e uma horas"
+
+  - id: masculino_gramas
+    entrada: "500 g"
+    esperado: "quinhentos gramas"
+
+  - id: moeda_sem_separador
+    entrada: "R$ 1500"
+    esperado: "mil e quinhentos reais"
+
+  - id: moeda_sem_separador_centavos
+    entrada: "R$ 1500,00"
+    esperado: "mil e quinhentos reais"
+
+  - id: moeda_um_digito_centavo
+    entrada: "R$ 10,5"
+    esperado: "dez reais e cinquenta centavos"
+
+  - id: moeda_com_mil
+    entrada: "R$ 2 mil"
+    esperado: "dois mil reais"
+
+  - id: moeda_com_milhao
+    entrada: "R$ 1,5 milhão"
+    esperado: "um vírgula cinco milhão de reais"
+
+  - id: moeda_ponto_decimal
+    entrada: "R$ 10.50"
+    esperado: "dez reais e cinquenta centavos"
+
+  - id: url_www
+    entrada: "Acesse www.site.com.br."
+    esperado: "Acesse dáblio dáblio dáblio ponto site ponto com ponto bê erre."
+
+  - id: url_https_com_query
+    entrada: "Acesse https://site.com.br/ajuda?x=1 para mais detalhes."
+    esperado: "Acesse site ponto com ponto bê erre barra ajuda para mais detalhes."
+
+  - id: email
+    entrada: "contato@empresa.com.br"
+    esperado: "contato arroba empresa ponto com ponto bê erre"
+
+  - id: dominio_sem_www
+    entrada: "empresa.com.br/ajuda"
+    esperado: "empresa ponto com ponto bê erre barra ajuda"
+
+  - id: parcelamento_x
+    entrada: "Parcele em 10x"
+    esperado: "Parcele em dez vezes"
+
+  - id: dimensao_x
+    entrada: "3x4"
+    esperado: "três por quatro"
+
+  - id: unidade_colada_km
+    entrada: "5km"
+    esperado: "cinco quilômetros"
+
+  - id: unidade_colada_ml
+    entrada: "500ml"
+    esperado: "quinhentos mililitros"
+
+  - id: unidade_minutos
+    entrada: "30min"
+    esperado: "trinta minutos"
+
+  - id: hora_e_minutos_colados
+    entrada: "1h30min"
+    esperado: "uma hora e trinta minutos"
+
+  - id: litro_decimal
+    entrada: "1,5L"
+    esperado: "um vírgula cinco litros"
+
+  - id: unidade_singular
+    entrada: "1 kg"
+    esperado: "um quilo"
+
+  - id: km_por_hora_colado
+    entrada: "60km/h"
+    esperado: "sessenta quilômetros por hora"
+
+  - id: hora_com_h_no_fim
+    entrada: "Às 18:30h"
+    esperado: "Às dezoito horas e trinta minutos"
+
+  - id: intervalo_dias
+    entrada: "7-10 dias"
+    esperado: "sete a dez dias"
+
+  - id: intervalo_horas
+    entrada: "8h-18h"
+    esperado: "oito horas a dezoito horas"
+
+  - id: intervalo_porcentagem
+    entrada: "10-20%"
+    esperado: "dez a vinte por cento"
+
+  - id: intervalo_anos
+    entrada: "2020-2024"
+    esperado: "dois mil e vinte a dois mil e vinte e quatro"
+
+  - id: data_iso
+    entrada: "2025-03-15"
+    esperado: "quinze de março de dois mil e vinte e cinco"
+
+  - id: mes_ano
+    entrada: "12/2025"
+    esperado: "dezembro de dois mil e vinte e cinco"
+
+  - id: validade_cartao
+    entrada: "Validade 12/25"
+    esperado: "Validade dezembro de vinte e cinco"
+
+  - id: decimal_com_ponto
+    entrada: "1.5"
+    esperado: "um vírgula cinco"
+
+  - id: porcentagem_ponto
+    entrada: "10.5%"
+    esperado: "dez vírgula cinco por cento"
+
+  - id: versao
+    entrada: "versão 2.0"
+    esperado: "versão dois ponto zero"
+
+  - id: data_curta_primeiro
+    entrada: "1/03"
+    esperado: "primeiro de março"
+
+  - id: numero_maiusculo
+    entrada: "Nº 123"
+    esperado: "número cento e vinte e três"
+
+  - id: numero_com_ponto
+    entrada: "nº. 5"
+    esperado: "número cinco"
+
+  - id: apartamento_com_ponto
+    entrada: "apto. 12"
+    esperado: "apartamento doze"
+
+  - id: pergunta_exclamada
+    entrada: "Sério?!"
+    esperado: "Sério?"
+
+  - id: emoji_com_seletor
+    entrada: "❤️ obrigado"
+    esperado: "obrigado"
+
+  - id: incremental_nao_corta_depois_de_abreviacao
+    entrada: "O Sr. João vai te atender. Até"
+    incremental: true
+    pronto: "O senhor João vai te atender."
+    pendente: "Até"
+
+  - id: incremental_nao_corta_item_de_lista
+    entrada: "1. Arroz"
+    incremental: true
+    pronto: ""
+    pendente: "1. Arroz"
