@@ -146,5 +146,6 @@ Pesos com licença não comercial ficam fora. Versões, compatibilidade e mediç
 | [docs/modelos.md](docs/modelos.md) | Modelos, licenças, versões e medições |
 | [docs/operacao.md](docs/operacao.md) | SLOs, métricas, capacidade e plantão |
 | [docs/gpu-nuvem.md](docs/gpu-nuvem.md) | Roteiro de validação em GPU alugada |
+| [docs/bench-mac.md](docs/bench-mac.md) | Bench de pronúncia 0.6B contra 1.7B num Mac com Apple Silicon |
 | [docs/teste-cego.md](docs/teste-cego.md) | Metodologia do gate de qualidade |
 | [docs/adr/](docs/adr/) | Decisões de arquitetura |

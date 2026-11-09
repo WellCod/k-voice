@@ -49,6 +49,8 @@ def _kwargs_modelo(device: str, dtype: str) -> dict[str, object]:
 
     if device.startswith("cuda") and not torch.cuda.is_available():
         raise RuntimeError(f"QWEN3_DEVICE={device}, mas o torch instalado não enxerga CUDA")
+    if device == "mps" and not torch.backends.mps.is_available():
+        raise RuntimeError("QWEN3_DEVICE=mps, mas o torch instalado não enxerga o Metal (MPS)")
     if dtype == "auto":
         dtype = "float32" if device == "cpu" else "bfloat16"
     return {"device_map": device, "dtype": getattr(torch, dtype)}

@@ -14,7 +14,8 @@ O ASR também erra. Os números servem para comparar motores, modelos e versões
 no mesmo ASR, e para ordenar as piores frases; não são verdade absoluta.
 
 Fontes de áudio:
-  --motor qwen3-cpu | qwen3-gpu | stub   sintetiza com o motor do servidor
+  --motor qwen3-cpu | qwen3-mps | qwen3-gpu | stub   sintetiza com o motor do servidor
+                                         (qwen3-mps: Mac com Apple Silicon, docs/bench-mac.md)
   --audios DIR                           usa {frase_id}.wav prontos (ex.: bench/sintetizar)
 
 Saída: bench/outputs/pronuncia/<rotulo>/ com os WAV, resultado.jsonl e resumo.json.
@@ -173,7 +174,7 @@ def _gravar_wav(caminho: Path, pcm: bytes, taxa: int) -> None:
         wf.writeframes(pcm)
 
 
-def _carregar_motor(nome: str, modelo_tts: str, speaker: str) -> Any:
+def _carregar_motor(nome: str, modelo_tts: str, speaker: str, dtype: str = "auto") -> Any:
     if nome == "stub":
         from kvoice.engine.stub import StubEngine
 
@@ -181,11 +182,15 @@ def _carregar_motor(nome: str, modelo_tts: str, speaker: str) -> Any:
     if nome == "qwen3-cpu":
         from kvoice.engine.qwen3_tts import Qwen3TTSEngine
 
-        return Qwen3TTSEngine.load(modelo_tts, "", speaker, device="cpu")
+        return Qwen3TTSEngine.load(modelo_tts, "", speaker, device="cpu", dtype=dtype)
+    if nome == "qwen3-mps":
+        from kvoice.engine.qwen3_tts import Qwen3TTSEngine
+
+        return Qwen3TTSEngine.load(modelo_tts, "", speaker, device="mps", dtype=dtype)
     if nome == "qwen3-gpu":
         from kvoice.engine.faster_qwen3 import FasterQwen3Engine
 
-        return FasterQwen3Engine.load(modelo_tts, "", speaker, device="cuda")
+        return FasterQwen3Engine.load(modelo_tts, "", speaker, device="cuda", dtype=dtype)
     raise SystemExit(f"motor desconhecido: {nome}")
 
 
@@ -352,7 +357,7 @@ async def _rodar(args: argparse.Namespace) -> None:
     motor = None
     if not args.audios:
         t = time.monotonic()
-        motor = _carregar_motor(args.motor, args.modelo_tts, args.speaker)
+        motor = _carregar_motor(args.motor, args.modelo_tts, args.speaker, args.dtype)
         print(f"motor {args.motor} carregado em {time.monotonic() - t:.1f}s")
     voz = Voice(id="bench", name="bench", model_id=args.speaker)
 
@@ -404,6 +409,7 @@ async def _rodar(args: argparse.Namespace) -> None:
         "rotulo": rotulo,
         "motor": args.motor if not args.audios else f"audios:{args.audios}",
         "modelo_tts": None if args.audios else args.modelo_tts,
+        "dtype": None if args.audios else args.dtype,
         "speaker": args.speaker,
         "asr": args.asr,
         "data": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -437,7 +443,15 @@ def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    p.add_argument("--motor", default="qwen3-cpu", choices=["qwen3-cpu", "qwen3-gpu", "stub"])
+    p.add_argument(
+        "--motor", default="qwen3-cpu", choices=["qwen3-cpu", "qwen3-mps", "qwen3-gpu", "stub"]
+    )
+    p.add_argument(
+        "--dtype",
+        default="auto",
+        choices=["auto", "float32", "bfloat16", "float16"],
+        help="auto: float32 em CPU, bfloat16 em MPS e CUDA",
+    )
     p.add_argument("--audios", type=Path, default=None, help="pasta com {frase_id}.wav prontos")
     p.add_argument("--modelo-tts", default="Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice")
     p.add_argument("--speaker", default="vivian")

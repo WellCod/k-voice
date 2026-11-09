@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 import numpy as np
 import pytest
 
-from kvoice.engine.qwen3_tts import Qwen3TTSEngine
+from kvoice.engine.qwen3_tts import Qwen3TTSEngine, _kwargs_modelo
 from kvoice.engine.types import SynthOptions, Voice
 
 
@@ -105,3 +105,18 @@ async def test_stream_entrega_audio_por_frase_antes_do_texto_acabar() -> None:
     restantes = [c async for c in gen]
     assert frases_sintetizadas == ["Primeira frase.", "Segunda frase."]
     assert sum(c.textos_concluidos for c in [primeiro, *restantes]) == 2
+
+
+def test_mps_sem_metal_falha_com_mensagem_clara(monkeypatch: pytest.MonkeyPatch) -> None:
+    import torch
+
+    monkeypatch.setattr(torch.backends.mps, "is_available", lambda: False)
+    with pytest.raises(RuntimeError, match="MPS"):
+        _kwargs_modelo("mps", "auto")
+
+
+def test_mps_usa_bfloat16_por_padrao(monkeypatch: pytest.MonkeyPatch) -> None:
+    import torch
+
+    monkeypatch.setattr(torch.backends.mps, "is_available", lambda: True)
+    assert _kwargs_modelo("mps", "auto") == {"device_map": "mps", "dtype": torch.bfloat16}
