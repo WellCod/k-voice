@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     # a checagem, já que toda chamada exige token.
     mcp_allowed_hosts: list[str] = []
 
+    # Cache em memória do áudio de frases curtas repetidas, por processo. 0 desliga.
+    audio_cache_mb: int = 64
+    audio_cache_max_chars: int = 200
+    audio_cache_ttl_s: int = 86_400
+
     @property
     def sync_database_url(self) -> str:
         url = self.database_url.replace("+asyncpg", "+psycopg2")

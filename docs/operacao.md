@@ -16,6 +16,7 @@
 - `kvoice_stream_active` e `kvoice_queue_depth` por nó
 - `kvoice_rtf` por nó
 - `kvoice_fallback_total` (labels: motivo = capacity, error, timeout, rule)
+- `kvoice_audio_cache_hits_total` e `kvoice_audio_cache_misses_total`: frases servidas da memória e frases curtas que foram ao motor. A taxa de acerto mostra quanto da fala do agente é repetida.
 - `kvoice_characters_total`, `kvoice_audio_seconds_total` (labels: client, engine)
 - `kvoice_cancel_latency_seconds`
 - GPU: uso, memória, temperatura (exporter da NVIDIA)

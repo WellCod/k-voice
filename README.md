@@ -107,6 +107,7 @@ Sobe Postgres, MinIO, a migração e o servidor na porta 8000 com a GPU reservad
 | `QWEN3_MODEL_ID` / `QWEN3_BASE_MODEL_ID` | 0.6B CustomVoice / Base | Modelos preset e de clonagem |
 | `QWEN3_SPEAKER` | `vivian` | Speaker padrão das vozes preset |
 | `MCP_ALLOWED_HOSTS` | `[]` | Hosts aceitos em `/mcp`, em JSON; vazio desliga a checagem de Host |
+| `AUDIO_CACHE_MB` / `AUDIO_CACHE_MAX_CHARS` / `AUDIO_CACHE_TTL_S` | `64` / `200` / `86400` | Cache em memória do áudio de frases curtas repetidas, por processo; `0` MB desliga |
 
 ## Desempenho
 

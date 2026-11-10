@@ -35,6 +35,7 @@ from kvoice.db.models import (
     VoiceConsent,
     VoiceOrigin,
 )
+from kvoice.engine.cache import limpar_caches_de_audio
 from kvoice.referencias import ChaveAusente, cifrar, exigir_chave
 
 # Diretório local para áudio de referência (dev; produção usa S3)
@@ -167,6 +168,7 @@ async def atualizar_voz(voice_id: str, body: VoicePatch, db: DbSession) -> Voice
             )
         voice.client_id = body.client_id
     await db.commit()
+    limpar_caches_de_audio()  # instrução ou speaker novos mudam o áudio da voz
     await db.refresh(voice)
     return voice
 
@@ -246,6 +248,7 @@ async def upload_audio_referencia(
     )
     db.add(consent)
     await db.commit()
+    limpar_caches_de_audio()  # referência nova: o áudio em cache é da voz antiga
     await db.refresh(consent)
     return consent
 
