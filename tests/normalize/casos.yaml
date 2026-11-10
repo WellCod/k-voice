@@ -514,11 +514,11 @@ casos:
 
   - id: url_www
     entrada: "Acesse www.site.com.br."
-    esperado: "Acesse dáblio dáblio dáblio ponto site ponto com ponto bê erre."
+    esperado: "Acesse dáblio dáblio dáblio ponto sáite ponto com ponto bê erre."
 
   - id: url_https_com_query
     entrada: "Acesse https://site.com.br/ajuda?x=1 para mais detalhes."
-    esperado: "Acesse site ponto com ponto bê erre barra ajuda para mais detalhes."
+    esperado: "Acesse sáite ponto com ponto bê erre barra ajuda para mais detalhes."
 
   - id: email
     entrada: "contato@empresa.com.br"
@@ -643,3 +643,86 @@ casos:
     incremental: true
     pronto: ""
     pendente: "1. Arroz"
+
+  # -----------------------------------------------------------------------
+  # Dicionário ampliado: siglas com vogal, siglas que são palavras e anglicismos
+  # -----------------------------------------------------------------------
+  - id: dic_saude
+    entrada: "O AVC foi tratado na UBS."
+    esperado: "O á vê cê foi tratado na u bê esse."
+
+  - id: dic_lugares
+    entrada: "Moro nos EUA e na UE."
+    esperado: "Moro nos ê u á e na u ê."
+
+  - id: dic_verbo_ir_nao_e_sigla
+    entrada: "Vou ir à loja amanhã."
+    esperado: "Vou ir à loja amanhã."
+
+  - id: dic_impostos
+    entrada: "Pagamento do IR e do IRRF."
+    esperado: "Pagamento do i erre e do i erre erre efe."
+
+  - id: dic_cargos
+    entrada: "O CEO da empresa falou com o TI."
+    esperado: "O ci i ôu da empresa falou com o tê i."
+
+  - id: dic_ok
+    entrada: "O UX do app está ok, OK?"
+    esperado: "O u xis do app está oquei, oquei?"
+
+  - id: dic_rede_e_midia
+    entrada: "Sinal 4G e 5G, vídeo 4K, arquivo MP3."
+    esperado: "Sinal quatro gê e cinco gê, vídeo quatro cá, arquivo eme pê três."
+
+  - id: dic_carro
+    entrada: "Comprei um SUV com freio ABS."
+    esperado: "Comprei um esse u vê com freio á bê esse."
+
+  - id: dic_abs_minusculo_e_abraco
+    entrada: "abs, até logo"
+    esperado: "abs, até logo"
+
+  - id: dic_site_email_link
+    entrada: "Entre no site e mande um e-mail com o link."
+    esperado: "Entre no sáite e mande um imeio com o línqui."
+
+  - id: dic_universidades
+    entrada: "Estudo na UFRJ e ela na UERJ e no IFSP."
+    esperado: "Estudo na u efe erre jota e ela na u ê erre jota e no i efe esse pê."
+
+  - id: dic_nota_fiscal
+    entrada: "Emiti a NF-e e a NFC-e."
+    esperado: "Emiti a nota fiscal eletrônica e a nota fiscal de consumidor eletrônica."
+
+  - id: dic_qr_e_checkin
+    entrada: "Leia o QR code e faça check-in."
+    esperado: "Leia o quê erre côdi e faça chéquin."
+
+  - id: dic_comercio
+    entrada: "Black Friday no e-commerce do Google."
+    esperado: "bléque fráidei no i cómerci do gúgol."
+
+  - id: dic_ti_pronome
+    entrada: "Ué, o ti é seu?"
+    esperado: "Ué, o ti é seu?"
+
+  - id: dic_sistemas
+    entrada: "Acesse pelo iOS ou Android."
+    esperado: "Acesse pelo ai ô esse ou andróid."
+
+  - id: dic_gramas_minusculo
+    entrada: "500 g de farinha"
+    esperado: "quinhentos gramas de farinha"
+
+  - id: dic_call_center
+    entrada: "Atendimento por chat ou call center. Uma call rápida."
+    esperado: "Atendimento por chét ou cól sênter. Uma cól rápida."
+
+  - id: dic_reuniao
+    entrada: "Fiz home office no Zoom e no Teams."
+    esperado: "Fiz rôme ófis no zum e no tíms."
+
+  - id: dic_documentos_carro
+    entrada: "O DPVAT e o CRLV estão pagos."
+    esperado: "O dê pê vê á tê e o cê erre ele vê estão pagos."
