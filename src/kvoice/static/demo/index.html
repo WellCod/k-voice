@@ -801,6 +801,11 @@
       <input type="text" id="nv-style-prompt" placeholder="Ex.: Speak in a warm, friendly tone">
       <div class="fhint">Define o comportamento padrão desta voz. Pode ser sobreposto por síntese.</div>
     </div>
+    <div class="fgrp">
+      <label class="lbl" for="nv-eleven">Voz equivalente na ElevenLabs <span class="xs muted">(opcional)</span></label>
+      <input type="text" id="nv-eleven" placeholder="Ex.: 21m00Tcm4TlvDq8ikWAM" maxlength="64" autocomplete="off">
+      <div class="fhint">Usada quando a fala cai no fallback. Sem ela, a fala não vai para a ElevenLabs.</div>
+    </div>
     <details style="margin-bottom:14px">
       <summary class="xs muted" style="cursor:pointer;user-select:none">Metadados opcionais ▾</summary>
       <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -929,7 +934,7 @@
 <div class="overlay" id="m-prompt">
   <div class="modal" role="dialog" aria-modal="true" style="width:480px">
     <div class="modal-hd">
-      <div class="modal-title">✏ Instrução de estilo — <span id="mp-name"></span></div>
+      <div class="modal-title">✏ Editar voz — <span id="mp-name"></span></div>
       <button class="btn btn-ghost btn-sm" onclick="closeM('m-prompt')" aria-label="Fechar">✕</button>
     </div>
     <input type="hidden" id="mp-vid">
@@ -946,6 +951,11 @@
         <button type="button" class="chip" onclick="appendPrompt('Pronounce all words carefully with native Brazilian Portuguese accent.')">Sotaque nativo</button>
         <button type="button" class="chip" onclick="appendPrompt('Speak slowly and articulate each word clearly.')">Articulação</button>
       </div>
+    </div>
+    <div class="fgrp mt16" style="margin-bottom:0">
+      <label class="lbl" for="mp-eleven">Voz equivalente na ElevenLabs</label>
+      <input type="text" id="mp-eleven" placeholder="Ex.: 21m00Tcm4TlvDq8ikWAM" maxlength="64" autocomplete="off">
+      <div class="fhint">Usada no fallback. Em branco, a fala não vai para a ElevenLabs; o mapa da regra do cliente tem prioridade.</div>
     </div>
     <div class="modal-ft">
       <button class="btn btn-secondary" onclick="closeM('m-prompt')">Cancelar</button>
@@ -1334,10 +1344,13 @@ function renderVoices() {
         ${v.style ? `<span class="badge bk">${esc(v.style)}</span>` : ''}
         ${v.age_range ? `<span class="badge by">${esc(v.age_range)}</span>` : ''}
         <span class="badge ${v.origin === 'preset' ? 'bg' : v.origin === 'clone' ? 'bp' : 'bb'}">${esc(v.origin)}</span>
+        ${v.elevenlabs_voice_id
+          ? `<span class="badge bk" title="Fallback: ${esc(v.elevenlabs_voice_id)}">fallback ✓</span>`
+          : '<span class="badge br" title="Sem voz equivalente na ElevenLabs">sem fallback</span>'}
       </div>
       <div class="vc-foot" style="gap:6px">
         ${v.origin === 'clone' ? `<button type="button" class="btn btn-ghost btn-sm" data-act="ref" data-vid="${esc(v.id)}">🔄 Ref.</button>` : ''}
-        <button type="button" class="btn btn-ghost btn-sm" data-act="prompt" data-vid="${esc(v.id)}">✏ Instrução</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-act="prompt" data-vid="${esc(v.id)}">✏ Editar</button>
         <button type="button" class="btn btn-secondary btn-sm" data-act="test" data-vid="${esc(v.id)}">▶ Testar</button>
       </div>
     </div>
@@ -1350,7 +1363,7 @@ document.getElementById('voice-grid').addEventListener('click', e => {
   const v = _voices.find(x => x.id === btn.dataset.vid);
   if (!v) return;
   if (btn.dataset.act === 'ref') openCloneUpdateM(v.id, v.name);
-  else if (btn.dataset.act === 'prompt') openPromptM(v.id, v.name, v.style_prompt || '');
+  else if (btn.dataset.act === 'prompt') openPromptM(v.id, v.name, v.style_prompt || '', v.elevenlabs_voice_id || '');
   else if (btn.dataset.act === 'test') testVoice(v.id);
 });
 
@@ -1710,7 +1723,7 @@ function autoId(nameEl, targetId) {
 }
 
 function openPresetM() {
-  ['nv-name','nv-id','nv-style-prompt','nv-age'].forEach(id => {
+  ['nv-name','nv-id','nv-style-prompt','nv-age','nv-eleven'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.value = ''; delete el.dataset.manual; }
   });
@@ -1735,6 +1748,7 @@ async function createVoice() {
     age_range: document.getElementById('nv-age').value.trim() || null,
     model_id: document.getElementById('nv-model').value || null,
     style_prompt: document.getElementById('nv-style-prompt').value.trim() || null,
+    elevenlabs_voice_id: document.getElementById('nv-eleven').value.trim() || null,
     origin: 'preset',
   };
   try {
@@ -1937,10 +1951,11 @@ async function submitClone() {
 }
 
 // ─── Style Prompt Editor ──────────────────────────────────────────────────────
-function openPromptM(vid, vname, current) {
+function openPromptM(vid, vname, current, eleven) {
   document.getElementById('mp-vid').value = vid;
   document.getElementById('mp-name').textContent = vname;
   document.getElementById('mp-prompt').value = current || '';
+  document.getElementById('mp-eleven').value = eleven || '';
   openM('m-prompt');
 }
 
@@ -1954,10 +1969,15 @@ function appendPrompt(text) {
 async function savePrompt() {
   const vid = document.getElementById('mp-vid').value;
   const prompt = document.getElementById('mp-prompt').value.trim();
+  const eleven = document.getElementById('mp-eleven').value.trim();
   try {
-    await api('PATCH', `/admin/voices/${vid}`, { style_prompt: prompt || null });
+    // "" apaga no servidor; null significaria "não mudar" e a instrução nunca saía.
+    await api('PATCH', `/admin/voices/${encodeURIComponent(vid)}`, {
+      style_prompt: prompt,
+      elevenlabs_voice_id: eleven,
+    });
     closeM('m-prompt');
-    toast('Instrução salva', 'ok');
+    toast('Voz salva', 'ok');
     loadVoices();
   } catch (e) { toast('Erro: ' + e.message, 'err'); }
 }

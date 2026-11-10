@@ -24,7 +24,7 @@ O plugin do LiveKit tenta o k-voice e cai para a ElevenLabs, nessa ordem. O pró
 
 ### 1. `kvoice-api` (Python, FastAPI)
 - Autenticação por token de cliente (hash no banco, escopos `tts:stream`, `tts:batch`, `voices:read`, `voices:write`, `admin`).
-- Roteador: decide motor por cliente/agente (`kvoice`, `elevenlabs`, `percentual`) e aplica fallback.
+- Roteador: decide motor por cliente/agente (`kvoice`, `elevenlabs`, `percentual`) e aplica fallback. A voz enviada à ElevenLabs vem do `voice_mapping` da regra do cliente ou, sem entrada lá, de `voice.elevenlabs_voice_id`. Sem nenhum dos dois a ElevenLabs não é usada: com o k-voice cheio a resposta é `capacity`, e o plugin do LiveKit cai na ElevenLabs com a voz que ele conhece.
 - Normalizador pt-BR antes de qualquer motor, inclusive a ElevenLabs (mantém pronúncia igual entre os dois).
 - Medição: uma linha por fala em `usage_event`, nos quatro caminhos (WebSocket, lote, compat e MCP). No WebSocket a gravação sai depois do `done`, fora do caminho do áudio; falha ao gravar vira log com `request_id`, nunca erro para o cliente.
 - Rotas: `/v1/...` (contrato próprio), `/compat/elevenlabs/v1/...` (subconjunto da API da ElevenLabs), `/mcp` (Streamable HTTP), `/health`, `/metrics`.

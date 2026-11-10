@@ -134,6 +134,7 @@ async def criar_voz(body: VoiceCreate, db: DbSession) -> Voice:
         origin=body.origin,
         model_id=body.model_id,
         style_prompt=body.style_prompt,
+        elevenlabs_voice_id=body.elevenlabs_voice_id,
     )
     db.add(voice)
     await db.commit()
@@ -154,6 +155,8 @@ async def atualizar_voz(voice_id: str, body: VoicePatch, db: DbSession) -> Voice
         voice.style_prompt = body.style_prompt or None
     if body.model_id is not None:
         voice.model_id = body.model_id or None
+    if body.elevenlabs_voice_id is not None:
+        voice.elevenlabs_voice_id = body.elevenlabs_voice_id or None
     await db.commit()
     await db.refresh(voice)
     return voice

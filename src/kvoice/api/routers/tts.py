@@ -103,7 +103,7 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voz não encontrada")
 
     t0 = time.monotonic()
-    decision = await decide_engine(client.id, body.voice_id)
+    decision = await decide_engine(client.id, body.voice_id, orm_voice.elevenlabs_voice_id)
     if decision is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -255,7 +255,7 @@ async def _executar_stream(
         await websocket.close()
         return
 
-    decision = await decide_engine(client.id, start.voice_id)
+    decision = await decide_engine(client.id, start.voice_id, orm_voice.elevenlabs_voice_id)
 
     if decision is None:
         await websocket.send_json({"type": "error", "code": "capacity"})

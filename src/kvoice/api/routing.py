@@ -47,14 +47,22 @@ async def _buscar_regra(client_id: uuid.UUID) -> RoutingRule | None:
         return result.scalar_one_or_none()
 
 
-def _remap_voice(voice_id: str, mapping_json: str | None) -> str:
-    if not mapping_json:
-        return voice_id
-    try:
-        mapping: dict[str, str] = json.loads(mapping_json)
-        return mapping.get(voice_id, voice_id)
-    except (json.JSONDecodeError, TypeError):
-        return voice_id
+def _voz_elevenlabs(
+    voice_id: str, mapping_json: str | None, padrao_da_voz: str | None
+) -> str | None:
+    """Voz da ElevenLabs para esta fala: mapa da regra do cliente, senão a da voz.
+
+    None quando nenhum dos dois existe. O id do k-voice nunca vai para a ElevenLabs,
+    que o recusa e derruba a fala justamente no pico, quando o fallback entra.
+    """
+    if mapping_json:
+        try:
+            mapping: dict[str, str] = json.loads(mapping_json)
+        except (json.JSONDecodeError, TypeError):
+            mapping = {}
+        if mapping.get(voice_id):
+            return mapping[voice_id]
+    return padrao_da_voz or None
 
 
 def _eleven() -> TTSEngine | None:
@@ -66,25 +74,33 @@ def _eleven() -> TTSEngine | None:
 async def decide_engine(
     client_id: uuid.UUID,
     voice_id: str,
+    elevenlabs_voice_id: str | None = None,
 ) -> RoutingDecision | None:
     """Decide qual engine usar para a requisição.
 
-    Retorna None quando nenhum engine está disponível (capacity excedida sem fallback).
+    `elevenlabs_voice_id` é a voz equivalente cadastrada na voz do k-voice; o mapa da
+    regra do cliente tem prioridade sobre ela. Sem nenhum dos dois a ElevenLabs não é
+    usada. Retorna None quando nenhum engine pode atender (o cliente recebe 503
+    `capacity` e o plugin do LiveKit cai na ElevenLabs com a voz que ele conhece).
     """
     rule = await _buscar_regra(client_id)
     kvoice = get_engine()
     eleven = _eleven()
 
     mode = rule.mode if rule else RoutingMode.kvoice
-    voice_mapping = rule.voice_mapping if rule else None
+    voz_eleven = _voz_elevenlabs(
+        voice_id, rule.voice_mapping if rule else None, elevenlabs_voice_id
+    )
+    # ElevenLabs só serve a fala se estiver configurada e souber qual voz usar.
+    eleven_utilizavel = eleven if voz_eleven is not None else None
 
     if mode == RoutingMode.elevenlabs:
-        if eleven is None:
+        if eleven_utilizavel is None or voz_eleven is None:
             return None
         return RoutingDecision(
-            engine=eleven,
+            engine=eleven_utilizavel,
             engine_name="elevenlabs",
-            effective_voice_id=_remap_voice(voice_id, voice_mapping),
+            effective_voice_id=voz_eleven,
             is_fallback=False,
             fallback_reason=None,
         )
@@ -105,27 +121,27 @@ async def decide_engine(
                 fallback_reason=None,
             )
         # capacidade esgotada → fallback para ElevenLabs
-        if eleven is not None:
+        if eleven_utilizavel is not None and voz_eleven is not None:
             return RoutingDecision(
-                engine=eleven,
+                engine=eleven_utilizavel,
                 engine_name="elevenlabs",
-                effective_voice_id=_remap_voice(voice_id, voice_mapping),
+                effective_voice_id=voz_eleven,
                 is_fallback=True,
                 fallback_reason="capacity",
             )
         return None  # cheio e sem fallback
 
     # percentual sorteou ElevenLabs
-    if eleven is not None:
+    if eleven_utilizavel is not None and voz_eleven is not None:
         return RoutingDecision(
-            engine=eleven,
+            engine=eleven_utilizavel,
             engine_name="elevenlabs",
-            effective_voice_id=_remap_voice(voice_id, voice_mapping),
+            effective_voice_id=voz_eleven,
             is_fallback=False,
             fallback_reason=None,
         )
 
-    # ElevenLabs indisponível → cai no k-voice se possível
+    # ElevenLabs indisponível ou sem voz equivalente → cai no k-voice se possível
     if kvoice is not None:
         cap = kvoice.capacity()
         if cap.queued < _ADMISSION_MAX_QUEUE:
@@ -134,6 +150,8 @@ async def decide_engine(
                 engine_name=kvoice.name,
                 effective_voice_id=voice_id,
                 is_fallback=True,
-                fallback_reason="elevenlabs_unavailable",
+                fallback_reason=(
+                    "elevenlabs_unavailable" if eleven is None else "elevenlabs_voice_unmapped"
+                ),
             )
     return None

@@ -97,7 +97,7 @@ async def text_to_speech(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voz não encontrada")
 
     t0 = time.monotonic()
-    decision = await decide_engine(client.id, voice_id)
+    decision = await decide_engine(client.id, voice_id, orm_voice.elevenlabs_voice_id)
     if decision is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Motor indisponível"
