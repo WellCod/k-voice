@@ -287,3 +287,15 @@ async def test_auth_escopo_insuficiente() -> None:
         pytest.raises(MCPError, match="Escopo"),
     ):
         await _auth(ctx, "tts:batch")
+
+
+@pytest.mark.parametrize("texto", ["", "   ", "a" * 10_001])
+async def test_synthesize_texto_vazio_ou_longo_demais(texto: str) -> None:
+    with (
+        patch(
+            "kvoice.mcp.server._auth",
+            AsyncMock(return_value=(_fake_client(), _fake_token_all())),
+        ),
+        pytest.raises(MCPError, match="text"),
+    ):
+        await synthesize(texto, "v_fake", ctx=_fake_ctx())

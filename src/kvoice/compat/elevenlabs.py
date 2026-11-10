@@ -16,10 +16,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Header, HTTPException, Query, status
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from kvoice.api.deps import autenticar_token, gravar_uso
 from kvoice.api.routing import decide_engine
+from kvoice.api.sintese import MAX_CARACTERES, sintetizar_em_partes
 from kvoice.audio import encode as encode_audio
 from kvoice.audio import pcm_duration_ms
 from kvoice.db.models import ApiToken, Client
@@ -50,7 +51,7 @@ class _VoiceSettings(BaseModel):
 
 
 class _TtsRequest(BaseModel):
-    text: str
+    text: str = Field(min_length=1, max_length=MAX_CARACTERES)
     model_id: str | None = None
     voice_settings: _VoiceSettings | None = None
 
@@ -110,7 +111,9 @@ async def text_to_speech(
     voice = decision.voz(orm_voice)
     opts = SynthOptions(format=our_format, speed=speed)
     pron = await load_dict(client.id)
-    audio = await decision.engine.synthesize(normalize(apply_dict(body.text, pron)), voice, opts)
+    audio = await sintetizar_em_partes(
+        decision.engine, normalize(apply_dict(body.text, pron)), voice, opts
+    )
     encoded, content_type = await asyncio.to_thread(
         encode_audio, audio.data, audio.sample_rate, our_format
     )

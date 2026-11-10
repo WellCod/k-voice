@@ -645,3 +645,63 @@ def test_ws_erro_do_motor_nao_manda_done(
             ws.receive_json()
         assert exc.value.code == 1011
     uso.assert_not_called()
+
+
+def test_ws_texto_sem_fim_de_frase_vai_ao_motor_em_pedacos(
+    fake_client: Any, fake_token: Any, fake_voice: Any, _dicionario_vazio: AsyncMock
+) -> None:
+    # Sem ponto final o texto se acumulava inteiro até o "end".
+    eng = _EngineQueGuardaTexto()
+    set_engine(eng)  # type: ignore[arg-type]
+    app = _make_app()
+    with (
+        _auth_patch(fake_client, fake_token),
+        _voice_patch(fake_voice),
+        _routing_patch(_kvoice_decision(eng)),  # type: ignore[arg-type]
+        _uso_patch(),
+        TestClient(app) as client,
+        client.websocket_connect("/v1/tts/stream?token=tok") as ws,
+    ):
+        ws.send_json({"type": "start", "voice_id": "v_fake"})
+        ws.receive_json()
+        for _ in range(60):
+            ws.send_json({"type": "text", "text": "e mais um pedaço sem ponto "})
+        ws.send_json({"type": "end"})
+        while (msg := ws.receive()).get("bytes") or json.loads(msg["text"])["type"] != "done":
+            pass
+
+    from kvoice.api.sintese import MAX_CARACTERES_SEGMENTO
+
+    assert len(eng.textos) > 1
+    assert all(len(t) <= MAX_CARACTERES_SEGMENTO for t in eng.textos)
+
+
+def test_ws_fala_acima_do_limite_recebe_erro_e_fecha(
+    fake_client: Any, fake_token: Any, fake_voice: Any, _dicionario_vazio: AsyncMock
+) -> None:
+    from kvoice.api.sintese import MAX_CARACTERES
+
+    eng = _EngineQueGuardaTexto()
+    set_engine(eng)  # type: ignore[arg-type]
+    app = _make_app()
+    with (
+        _auth_patch(fake_client, fake_token),
+        _voice_patch(fake_voice),
+        _routing_patch(_kvoice_decision(eng)),  # type: ignore[arg-type]
+        _uso_patch() as uso,
+        TestClient(app) as client,
+        client.websocket_connect("/v1/tts/stream?token=tok") as ws,
+    ):
+        ws.send_json({"type": "start", "voice_id": "v_fake"})
+        ws.receive_json()
+        ws.send_json({"type": "text", "text": "a" * (MAX_CARACTERES + 1)})
+        recebido = None
+        while True:
+            msg = ws.receive()
+            if msg.get("text"):
+                recebido = json.loads(msg["text"])
+                break
+        assert recebido == {"type": "error", "code": "text_too_long"}
+        with pytest.raises(WebSocketDisconnect):
+            ws.receive_json()
+    uso.assert_not_called()

@@ -242,3 +242,22 @@ def test_compat_sem_auth() -> None:
         resp = client.post("/v1/text-to-speech/v_fake", json={"text": "Olá"})
 
     assert resp.status_code == 401
+
+
+def test_compat_texto_acima_do_limite_e_rejeitado() -> None:
+    from kvoice.api.sintese import MAX_CARACTERES
+
+    app = _make_app()
+    with (
+        patch(
+            "kvoice.compat.elevenlabs._autenticar",
+            AsyncMock(return_value=(_fake_client(), _fake_token())),
+        ),
+        TestClient(app) as client,
+    ):
+        resp = client.post(
+            "/v1/text-to-speech/v_fake",
+            json={"text": "a" * (MAX_CARACTERES + 1)},
+            headers={"xi-api-key": "chave"},
+        )
+    assert resp.status_code == 422

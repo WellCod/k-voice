@@ -22,6 +22,7 @@ from sqlalchemy import select
 
 from kvoice.api.deps import autenticar_token, gravar_uso
 from kvoice.api.routing import decide_engine
+from kvoice.api.sintese import MAX_CARACTERES, sintetizar_em_partes
 from kvoice.audio import encode as encode_audio
 from kvoice.audio import pcm_duration_ms
 from kvoice.db.models import ApiToken, Client
@@ -105,6 +106,10 @@ async def synthesize(
     Formatos: ogg_opus (padrão, WhatsApp), mp3_44100, wav_24000.
     url_ttl_s: validade da URL em segundos (60–604800, padrão 86400).
     """
+    if not text.strip():
+        raise MCPError(-32602, "text não pode ser vazio.")
+    if len(text) > MAX_CARACTERES:
+        raise MCPError(-32602, f"text passa de {MAX_CARACTERES} caracteres.")
     if format not in _EXT:
         formatos = "ogg_opus, mp3_44100, wav_24000"
         raise MCPError(-32602, f"Formato inválido: {format!r}. Use {formatos}.")
@@ -125,7 +130,9 @@ async def synthesize(
     voice = decision.voz(orm_voice)
     pron = await load_dict(client.id)
     normalized = normalize(apply_dict(text, pron))
-    audio = await decision.engine.synthesize(normalized, voice, SynthOptions(format=format))
+    audio = await sintetizar_em_partes(
+        decision.engine, normalized, voice, SynthOptions(format=format)
+    )
 
     encoded, content_type = await asyncio.to_thread(
         encode_audio, audio.data, audio.sample_rate, format
