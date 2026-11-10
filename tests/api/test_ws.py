@@ -742,3 +742,90 @@ def test_ws_frase_repetida_sai_do_cache_de_audio(
 
     assert base.textos.count("Um momento.") == 1
     assert "flushed" in tipos
+
+
+def _ate_done(ws: Any) -> None:
+    while (msg := ws.receive()).get("bytes") or json.loads(msg["text"])["type"] != "done":
+        pass
+
+
+def test_ws_varias_falas_na_mesma_conexao(
+    fake_client: Any, fake_token: Any, fake_voice: Any, _dicionario_vazio: AsyncMock
+) -> None:
+    eng = _EngineQueGuardaTexto()
+    set_engine(eng)  # type: ignore[arg-type]
+    app = _make_app()
+    auth = AsyncMock(return_value=(fake_client, fake_token))
+    voz = AsyncMock(return_value=fake_voice)
+    with (
+        patch("kvoice.api.routers.tts._autenticar_ws", auth),
+        patch("kvoice.api.routers.tts._buscar_voz", voz),
+        _routing_patch(_kvoice_decision(eng)),  # type: ignore[arg-type]
+        _uso_patch() as uso,
+        TestClient(app) as client,
+        client.websocket_connect("/v1/tts/stream?token=tok") as ws,
+    ):
+        for texto in ("Primeira fala.", "Segunda fala."):
+            ws.send_json({"type": "start", "voice_id": "v_fake"})
+            assert ws.receive_json()["type"] == "started"
+            ws.send_json({"type": "text", "text": texto, "flush": True})
+            ws.send_json({"type": "end"})
+            _ate_done(ws)
+
+    assert eng.textos == ["Primeira fala.", "Segunda fala."]
+    auth.assert_awaited_once()
+    voz.assert_awaited_once()  # mesma voz: não busca de novo
+    _dicionario_vazio.assert_awaited_once()
+    assert uso.await_count == 2
+
+
+def test_ws_start_da_proxima_fala_antes_do_done_nao_se_perde(
+    fake_client: Any, fake_token: Any, fake_voice: Any, _dicionario_vazio: AsyncMock
+) -> None:
+    eng = _EngineQueGuardaTexto()
+    set_engine(eng)  # type: ignore[arg-type]
+    app = _make_app()
+    with (
+        _auth_patch(fake_client, fake_token),
+        _voice_patch(fake_voice),
+        _routing_patch(_kvoice_decision(eng)),  # type: ignore[arg-type]
+        _uso_patch(),
+        TestClient(app) as client,
+        client.websocket_connect("/v1/tts/stream?token=tok") as ws,
+    ):
+        ws.send_json({"type": "start", "voice_id": "v_fake"})
+        ws.receive_json()
+        ws.send_json({"type": "text", "text": "Primeira.", "flush": True})
+        ws.send_json({"type": "end"})
+        ws.send_json({"type": "start", "voice_id": "v_fake"})  # sem esperar o done
+        _ate_done(ws)
+        assert ws.receive_json()["type"] == "started"
+        ws.send_json({"type": "text", "text": "Segunda.", "flush": True})
+        ws.send_json({"type": "end"})
+        _ate_done(ws)
+
+    assert eng.textos == ["Primeira.", "Segunda."]
+
+
+def test_ws_conexao_ociosa_depois_do_done_fecha(
+    fake_client: Any, fake_token: Any, fake_voice: Any, _dicionario_vazio: AsyncMock
+) -> None:
+    eng = _EngineQueGuardaTexto()
+    set_engine(eng)  # type: ignore[arg-type]
+    app = _make_app()
+    with (
+        patch("kvoice.api.routers.tts._OCIOSO_ENTRE_FALAS_S", 0.2),
+        _auth_patch(fake_client, fake_token),
+        _voice_patch(fake_voice),
+        _routing_patch(_kvoice_decision(eng)),  # type: ignore[arg-type]
+        _uso_patch(),
+        TestClient(app) as client,
+        client.websocket_connect("/v1/tts/stream?token=tok") as ws,
+    ):
+        ws.send_json({"type": "start", "voice_id": "v_fake"})
+        ws.receive_json()
+        ws.send_json({"type": "text", "text": "Só uma.", "flush": True})
+        ws.send_json({"type": "end"})
+        _ate_done(ws)
+        with pytest.raises(WebSocketDisconnect):
+            ws.receive_json()
