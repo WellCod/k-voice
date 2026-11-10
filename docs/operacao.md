@@ -40,7 +40,7 @@ Comparar k-voice vs ElevenLabs no mesmo período e cliente:
 
 - Capacidade por GPU = maior número de streams simultâneos com TTFA p95 ≤ 350 ms, medido no PR 4 e refeito a cada troca de modelo, versão ou GPU.
 - Manter 30% de folga sobre o pico do mês anterior.
-- Admissão: o motor serializa inferências; pedidos esperando o lock contam como fila (`queued` em `/health`). Com 8 ou mais na fila, o roteamento cai para a ElevenLabs (`fallback_reason=capacity`) ou recusa com `capacity`.
+- Admissão: o motor serializa inferências; pedidos esperando o lock contam como fila (`queued` em `/health`). Com 8 ou mais na fila, o roteamento cai para a ElevenLabs (`fallback_reason=capacity`) ou recusa com `capacity` quando a voz não tem equivalente na ElevenLabs cadastrado (campo "Voz equivalente na ElevenLabs" no painel). Toda voz em produção precisa desse campo; o painel marca as que estão "sem fallback".
 
 ## Áudio de referência
 

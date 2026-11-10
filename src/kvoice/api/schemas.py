@@ -61,6 +61,10 @@ class TokenResponse(BaseModel):
 # -----------------------------------------------------------------------
 
 
+_ID_VOZ_ELEVENLABS = r"^[A-Za-z0-9]+$"
+_ID_VOZ_ELEVENLABS_OU_VAZIO = r"^[A-Za-z0-9]*$"
+
+
 class VoiceCreate(BaseModel):
     # Limites iguais às colunas: texto maior virava 500 do banco em vez de 422. O id entra
     # no caminho do áudio de referência, então só letras, números, "-" e "_".
@@ -73,11 +77,16 @@ class VoiceCreate(BaseModel):
     origin: VoiceOrigin
     model_id: str | None = Field(default=None, max_length=255)
     style_prompt: str | None = None
+    elevenlabs_voice_id: str | None = Field(default=None, max_length=64, pattern=_ID_VOZ_ELEVENLABS)
 
 
 class VoicePatch(BaseModel):
     style_prompt: str | None = None
     model_id: str | None = None
+    # "" remove o mapeamento; None deixa como está.
+    elevenlabs_voice_id: str | None = Field(
+        default=None, max_length=64, pattern=_ID_VOZ_ELEVENLABS_OU_VAZIO
+    )
 
 
 class VoiceResponse(BaseModel):
@@ -92,6 +101,7 @@ class VoiceResponse(BaseModel):
     origin: VoiceOrigin
     model_id: str | None
     style_prompt: str | None
+    elevenlabs_voice_id: str | None = None
     is_active: bool
     created_at: datetime
 

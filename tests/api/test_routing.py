@@ -37,6 +37,7 @@ async def _decide(
     rule: RoutingRule | None,
     kvoice: MagicMock | None,
     eleven: MagicMock | None,
+    elevenlabs_voice_id: str | None = "el_ana",
 ) -> RoutingDecision | None:
     client_id = uuid.uuid4()
     with (
@@ -44,7 +45,7 @@ async def _decide(
         patch("kvoice.api.routing.get_engine", return_value=kvoice),
         patch("kvoice.api.routing._eleven", return_value=eleven),
     ):
-        return await decide_engine(client_id, voice_id)
+        return await decide_engine(client_id, voice_id, elevenlabs_voice_id)
 
 
 def _rule(
@@ -95,8 +96,17 @@ async def test_kvoice_cheio_fallback_eleven() -> None:
     assert decision is not None
     assert decision.engine is eleven
     assert decision.engine_name == "elevenlabs"
+    assert decision.effective_voice_id == "el_ana"
     assert decision.is_fallback
     assert decision.fallback_reason == "capacity"
+
+
+@pytest.mark.asyncio
+async def test_kvoice_cheio_sem_voz_elevenlabs_nao_manda_id_do_kvoice() -> None:
+    # Sem voz equivalente, "v_ana" iria para a ElevenLabs e a fala daria erro no pico.
+    kvoice = _mock_kvoice(queued=10)
+    decision = await _decide("v_ana", None, kvoice, _mock_eleven(), elevenlabs_voice_id=None)
+    assert decision is None
 
 
 @pytest.mark.asyncio
@@ -134,12 +144,39 @@ async def test_voice_mapping_remapeia_id() -> None:
 
 
 @pytest.mark.asyncio
-async def test_voice_mapping_sem_entrada_mantém_id() -> None:
+async def test_voice_mapping_sem_entrada_usa_voz_cadastrada() -> None:
     rule = _rule(RoutingMode.elevenlabs, voice_mapping={"v_outro": "el_outro"})
     eleven = _mock_eleven()
-    decision = await _decide("v_ana", rule, None, eleven)
+    decision = await _decide("v_ana", rule, None, eleven, elevenlabs_voice_id="el_ana")
     assert decision is not None
+    assert decision.effective_voice_id == "el_ana"
+
+
+@pytest.mark.asyncio
+async def test_mapa_da_regra_vence_a_voz_cadastrada() -> None:
+    rule = _rule(RoutingMode.elevenlabs, voice_mapping={"v_ana": "el_do_cliente"})
+    decision = await _decide("v_ana", rule, None, _mock_eleven(), elevenlabs_voice_id="el_ana")
+    assert decision is not None
+    assert decision.effective_voice_id == "el_do_cliente"
+
+
+@pytest.mark.asyncio
+async def test_mode_elevenlabs_sem_voz_equivalente_retorna_none() -> None:
+    rule = _rule(RoutingMode.elevenlabs, voice_mapping={"v_outro": "el_outro"})
+    decision = await _decide("v_ana", rule, None, _mock_eleven(), elevenlabs_voice_id=None)
+    assert decision is None
+
+
+@pytest.mark.asyncio
+async def test_percentual_sorteia_eleven_sem_voz_equivalente_usa_kvoice() -> None:
+    rule = _rule(RoutingMode.percentual, kvoice_pct=0.0)
+    kvoice = _mock_kvoice(queued=0)
+    with patch("kvoice.api.routing.random.random", return_value=0.5):
+        decision = await _decide("v_ana", rule, kvoice, _mock_eleven(), elevenlabs_voice_id=None)
+    assert decision is not None
+    assert decision.engine is kvoice
     assert decision.effective_voice_id == "v_ana"
+    assert decision.fallback_reason == "elevenlabs_voice_unmapped"
 
 
 @pytest.mark.asyncio

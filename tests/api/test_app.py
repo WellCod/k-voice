@@ -173,3 +173,14 @@ def test_voz_com_campo_fora_do_limite_da_coluna_e_rejeitada(campos: dict[str, st
     VoiceCreate.model_validate(base)
     with pytest.raises(ValidationError):
         VoiceCreate.model_validate({**base, **campos})
+
+
+def test_voz_equivalente_na_elevenlabs_aceita_id_e_vazio_no_patch() -> None:
+    from kvoice.api.schemas import VoiceCreate, VoicePatch
+
+    VoiceCreate(id="v_ok", name="Voz", origin="preset", elevenlabs_voice_id="21m00Tcm4TlvDq8ikWAM")
+    assert VoicePatch(elevenlabs_voice_id="").elevenlabs_voice_id == ""
+    with pytest.raises(ValidationError):
+        VoiceCreate(id="v_ok", name="Voz", origin="preset", elevenlabs_voice_id="")
+    with pytest.raises(ValidationError):
+        VoicePatch(elevenlabs_voice_id="../x")

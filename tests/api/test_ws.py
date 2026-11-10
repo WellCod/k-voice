@@ -114,6 +114,7 @@ def fake_voice() -> Any:
         model_id=None,
         ref_audio_key=None,
         ref_text=None,
+        elevenlabs_voice_id=None,
     )
 
 

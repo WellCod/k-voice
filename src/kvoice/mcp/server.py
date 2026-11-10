@@ -118,7 +118,7 @@ async def synthesize(
         raise MCPError(-32000, f"Voz {voice_id!r} não encontrada.")
 
     t0 = time.monotonic()
-    decision = await decide_engine(client.id, voice_id)
+    decision = await decide_engine(client.id, voice_id, orm_voice.elevenlabs_voice_id)
     if decision is None:
         raise MCPError(-32000, "Motor de síntese indisponível.")
 
