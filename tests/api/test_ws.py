@@ -707,3 +707,38 @@ def test_ws_fala_acima_do_limite_recebe_erro_e_fecha(
         with pytest.raises(WebSocketDisconnect):
             ws.receive_json()
     uso.assert_not_called()
+
+
+def test_ws_frase_repetida_sai_do_cache_de_audio(
+    fake_client: Any, fake_token: Any, fake_voice: Any, _dicionario_vazio: AsyncMock
+) -> None:
+    from kvoice.engine.cache import MotorComCache
+
+    base = _EngineQueGuardaTexto()
+    eng = MotorComCache(base, max_bytes=1_000_000, max_caracteres=200, ttl_s=60)  # type: ignore[arg-type]
+    set_engine(eng)
+    app = _make_app()
+    with (
+        _auth_patch(fake_client, fake_token),
+        _voice_patch(fake_voice),
+        _routing_patch(_kvoice_decision(eng)),  # type: ignore[arg-type]
+        _uso_patch(),
+        TestClient(app) as client,
+        client.websocket_connect("/v1/tts/stream?token=tok") as ws,
+    ):
+        ws.send_json({"type": "start", "voice_id": "v_fake"})
+        ws.receive_json()
+        ws.send_json({"type": "text", "text": "Um momento. Já verifico. Um momento. "})
+        ws.send_json({"type": "text", "text": "Fim", "flush": True})
+        ws.send_json({"type": "end"})
+        tipos = []
+        while True:
+            msg = ws.receive()
+            if msg.get("bytes"):
+                continue
+            tipos.append(json.loads(msg["text"])["type"])
+            if tipos[-1] == "done":
+                break
+
+    assert base.textos.count("Um momento.") == 1
+    assert "flushed" in tipos

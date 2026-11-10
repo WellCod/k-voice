@@ -82,6 +82,15 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                         settings.qwen3_device,
                         settings.qwen3_dtype,
                     )
+                if settings.audio_cache_mb > 0:
+                    from kvoice.engine.cache import MotorComCache
+
+                    engine = MotorComCache(
+                        engine,
+                        max_bytes=settings.audio_cache_mb * 1024 * 1024,
+                        max_caracteres=settings.audio_cache_max_chars,
+                        ttl_s=settings.audio_cache_ttl_s,
+                    )
                 set_engine(engine)
                 log.info(
                     "Qwen3-TTS carregado (%s, speaker=%s, device=%s)",
