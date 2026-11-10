@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import re
 import time
 import uuid
 from collections import deque
@@ -27,13 +26,19 @@ from kvoice.api.metrics import (
 )
 from kvoice.api.routing import RoutingDecision, decide_engine
 from kvoice.api.schemas import BatchRequest, BatchResponse
+from kvoice.api.sintese import (
+    MAX_CARACTERES,
+    MAX_CARACTERES_SEGMENTO,
+    cortar_em_pausa,
+    sintetizar_em_partes,
+)
 from kvoice.api.ws_proto import CancelMsg, EndMsg, StartMsg, TextMsg, parse_client_msg
 from kvoice.audio import encode as encode_audio
 from kvoice.audio import pcm_duration_ms
 from kvoice.db.models import ApiToken, BatchJob, BatchStatus, Client
 from kvoice.db.models import Voice as DbVoice
 from kvoice.db.session import session_factory
-from kvoice.engine.types import Audio, SynthOptions
+from kvoice.engine.types import SynthOptions
 from kvoice.normalize import (
     PronEntry,
     apply_dict,
@@ -50,34 +55,6 @@ _tarefas_uso: set[asyncio.Task[None]] = set()
 
 _EXT: dict[str, str] = {"ogg_opus": "ogg", "mp3_44100": "mp3", "wav_24000": "wav"}
 _FLUSH = object()
-_MAX_CHARS_SEGMENTO = 600
-# Preferência: dividir apenas em ponto final para preservar contexto de perguntas/exclamações
-_RE_FRASE_PONTO = re.compile(r"(?<=[.])\s+")
-_RE_FRASE = re.compile(r"(?<=[.!?])\s+")
-
-
-def _split_sentencas(text: str) -> list[str]:
-    """Divide texto longo em sentenças para preservar prosódia por segmento."""
-    if len(text) <= _MAX_CHARS_SEGMENTO:
-        return [text]
-    # Prefere dividir apenas em ponto final; cai para qualquer pontuação se necessário
-    for regex in (_RE_FRASE_PONTO, _RE_FRASE):
-        partes = regex.split(text.strip())
-        if len(partes) > 1:
-            break
-    grupos: list[str] = []
-    atual = ""
-    for parte in partes:
-        if not atual:
-            atual = parte
-        elif len(atual) + 1 + len(parte) <= _MAX_CHARS_SEGMENTO:
-            atual += " " + parte
-        else:
-            grupos.append(atual)
-            atual = parte
-    if atual:
-        grupos.append(atual)
-    return grupos or [text]
 
 
 async def _autenticar_ws(token: str) -> tuple[Client, ApiToken] | None:
@@ -115,25 +92,7 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
     pron = await load_dict(client.id)
     normalized = normalize(apply_dict(body.text, pron))
 
-    sentencas = _split_sentencas(normalized)
-    if len(sentencas) == 1:
-        audio = await decision.engine.synthesize(sentencas[0], voice, opts)
-    else:
-        pcm_parts: list[bytes] = []
-        primeiro_ttfa = 0.0
-        for i, sent in enumerate(sentencas):
-            seg = await decision.engine.synthesize(sent, voice, opts)
-            if i == 0:
-                primeiro_ttfa = seg.ttfa_ms
-            pcm_parts.append(seg.data)
-        silence = b"\x00" * int(0.06 * decision.engine.sample_rate) * 2
-        combined = silence.join(pcm_parts)
-        audio = Audio(
-            data=combined,
-            sample_rate=decision.engine.sample_rate,
-            duration_ms=pcm_duration_ms(combined, decision.engine.sample_rate),
-            ttfa_ms=primeiro_ttfa,
-        )
+    audio = await sintetizar_em_partes(decision.engine, normalized, voice, opts)
 
     encoded, content_type = await asyncio.to_thread(
         encode_audio, audio.data, audio.sample_rate, body.format
@@ -342,6 +301,14 @@ async def _executar_com_engine(
             if ready:
                 entregues += 1
                 yield ready
+            # Texto sem fim de frase se acumularia sem limite: cada pedaço reprocessaria
+            # tudo (custo quadrático no loop) e a "frase" final seguraria o lock do motor.
+            while len(pending) > MAX_CARACTERES_SEGMENTO:
+                cabeca, pending = cortar_em_pausa(pending)
+                normed = normalize(apply_dict(cabeca, pron))
+                if normed:
+                    entregues += 1
+                    yield normed
 
     falhou = False
 
@@ -416,6 +383,11 @@ async def _executar_com_engine(
                     continue
                 if isinstance(msg, TextMsg):
                     total_chars += len(msg.text)
+                    if total_chars > MAX_CARACTERES:
+                        streams_errors.labels(code="text_too_long").inc()
+                        await send_queue.put({"type": "error", "code": "text_too_long"})
+                        _interromper()
+                        return
                     await text_queue.put(msg.text)
                     if msg.flush:
                         await text_queue.put(_FLUSH)

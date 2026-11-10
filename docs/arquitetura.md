@@ -87,7 +87,8 @@ Cliente → servidor (JSON, texto):
 
 Servidor → cliente:
 - binário: PCM 16-bit little-endian mono no `format` pedido, em pedaços de 20–40 ms;
-- JSON: `{"type":"started","request_id":"...","engine":"kvoice","sample_rate":24000}`, `{"type":"flushed"}`, `{"type":"done","ttfa_ms":142,"audio_ms":2380}`, `{"type":"error","code":"capacity"}`.
+- JSON: `{"type":"started","request_id":"...","engine":"kvoice","sample_rate":24000}`, `{"type":"flushed"}`, `{"type":"done","ttfa_ms":142,"audio_ms":2380}`, `{"type":"error","code":"capacity"}`. Códigos de erro: `capacity`, `voice_not_found`, `engine` (o socket fecha com 1011, sem `done`) e `text_too_long` (fala acima de 10.000 caracteres; o socket fecha).
+- Limites: 10.000 caracteres por fala no WebSocket e por pedido no lote, no compat e no MCP. Texto sem fim de frase é cortado em pedaços de até 600 caracteres (na última vírgula ou palavra) antes de ir ao motor; o lote, o compat e o MCP sintetizam texto longo nessas mesmas partes.
 
 `flush` força gerar o que já chegou (fim de frase do LLM). `flushed` só é enviado depois do último áudio do texto anterior ao flush: o motor marca em cada `AudioChunk` quantos itens de texto terminaram de soar (`textos_concluidos`), e o plugin do LiveKit fecha o segmento nesse ponto.
 

@@ -8,6 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from kvoice.api.sintese import MAX_CARACTERES
 from kvoice.db.models import RoutingMode, VoiceOrigin
 
 # -----------------------------------------------------------------------
@@ -185,7 +186,7 @@ class UsageEventIn(BaseModel):
 
 
 class BatchRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=10_000)
+    text: str = Field(min_length=1, max_length=MAX_CARACTERES)
     voice_id: str = Field(min_length=1)
     format: Literal["ogg_opus", "mp3_44100", "wav_24000"] = "ogg_opus"
     delivery: Literal["url", "bytes"] = "url"
