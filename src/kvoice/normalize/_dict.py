@@ -7,6 +7,7 @@ Entradas de regex são aplicadas em sequência, após os literais.
 
 from __future__ import annotations
 
+import functools
 import logging
 import re
 import uuid
@@ -47,11 +48,20 @@ async def load_dict(client_id: uuid.UUID) -> list[PronEntry]:
     return [(t, exp, False) for t, exp in plain.items()] + regex
 
 
+@functools.lru_cache(maxsize=4096)
+def _padrao_literal(termo: str) -> re.Pattern[str]:
+    # Termo literal só casa como palavra inteira: "AI" não pode trocar o meio de "MAIS",
+    # nem "HD" o começo de "HDMI".
+    return re.compile(rf"(?<!\w){re.escape(termo)}(?!\w)")
+
+
 def apply_dict(text: str, entries: list[PronEntry]) -> str:
     """Aplica literais primeiro, depois regex, na ordem da lista."""
     for term, expansion, is_regex in entries:
         if not is_regex:
-            text = text.replace(term, expansion)
+            if term in text:
+                # Expansão como texto puro: "\1" ou "\d" num literal não viram grupo nem escape.
+                text = _padrao_literal(term).sub(expansion.replace("\\", "\\\\"), text)
             continue
         try:
             text = re.sub(term, expansion, text)

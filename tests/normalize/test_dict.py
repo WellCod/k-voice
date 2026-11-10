@@ -134,3 +134,22 @@ async def test_load_dict_regex_separado() -> None:
     is_regex_flags = [is_regex for _, _, is_regex in entries]
     # todos os False (literais) antes dos True (regex)
     assert is_regex_flags == sorted(is_regex_flags)
+
+
+def test_apply_dict_literal_so_troca_palavra_inteira() -> None:
+    entries: list[PronEntry] = [
+        ("AI", "a i", False),
+        ("HD", "agá dê", False),
+        ("R$", "reais", False),
+        ("S/A", "sociedade anônima", False),
+    ]
+    assert apply_dict("MAIS VENDIDOS", entries) == "MAIS VENDIDOS"
+    assert apply_dict("cabo HDMI e HD externo", entries) == "cabo HDMI e agá dê externo"
+    assert apply_dict("a AI, de novo", entries) == "a a i, de novo"
+    assert apply_dict("R$ 5", entries) == "reais 5"
+    assert apply_dict("Klubi S/A.", entries) == "Klubi sociedade anônima."
+
+
+def test_apply_dict_literal_com_barra_na_expansao_fica_literal() -> None:
+    entries: list[PronEntry] = [("caminho", "c:\\pasta\\1", False)]
+    assert apply_dict("o caminho certo", entries) == "o c:\\pasta\\1 certo"

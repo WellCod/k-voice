@@ -258,6 +258,76 @@ _ANGLICISMOS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bsushi\b", re.IGNORECASE), "súchi"),
     (re.compile(r"\bdiesel\b", re.IGNORECASE), "dízel"),
     (re.compile(r"\blaser\b", re.IGNORECASE), "léizer"),
+    # ── Atendimento, comércio e trabalho ────────────────────────────────────────
+    (re.compile(r"\be-?mails?\b", re.IGNORECASE), "imeio"),
+    (re.compile(r"\bsites?\b", re.IGNORECASE), "sáite"),
+    (re.compile(r"\blinks?\b", re.IGNORECASE), "línqui"),
+    (re.compile(r"\bchat\b", re.IGNORECASE), "chét"),
+    (re.compile(r"\bchatbot\b", re.IGNORECASE), "chét bót"),
+    (re.compile(r"\bdelivery\b", re.IGNORECASE), "delíveri"),
+    (re.compile(r"\bhome\s+office\b", re.IGNORECASE), "rôme ófis"),
+    (re.compile(r"\bcall\s+center\b", re.IGNORECASE), "cól sênter"),
+    (re.compile(r"\bcall\b", re.IGNORECASE), "cól"),
+    (re.compile(r"\bhelp\s*desk\b", re.IGNORECASE), "rélpi désqui"),
+    (re.compile(r"\bdeadline\b", re.IGNORECASE), "dédlaine"),
+    (re.compile(r"\bfollow-?up\b", re.IGNORECASE), "fólou ápi"),
+    (re.compile(r"\bcheck-?in\b", re.IGNORECASE), "chéquin"),
+    (re.compile(r"\bcheck-out\b", re.IGNORECASE), "chécáute"),
+    (re.compile(r"\btickets?\b", re.IGNORECASE), "tíquete"),
+    (re.compile(r"\bblack\s+friday\b", re.IGNORECASE), "bléque fráidei"),
+    (re.compile(r"\bcyber\s+monday\b", re.IGNORECASE), "sáiber mândei"),
+    (re.compile(r"\boutlet\b", re.IGNORECASE), "áutlet"),
+    (re.compile(r"\bpremium\b", re.IGNORECASE), "prêmium"),
+    (re.compile(r"\bgift\s+cards?\b", re.IGNORECASE), "guífti cárd"),
+    (re.compile(r"\be-?commerce\b", re.IGNORECASE), "i cómerci"),
+    (re.compile(r"\bmarketplace\b", re.IGNORECASE), "márquet plêice"),
+    (re.compile(r"\bmarketing\b", re.IGNORECASE), "márquetin"),
+    (re.compile(r"\blayout\b", re.IGNORECASE), "lêiaut"),
+    (re.compile(r"\bdesign\b", re.IGNORECASE), "dizáin"),
+    (re.compile(r"\bdesigner\b", re.IGNORECASE), "dizáiner"),
+    (re.compile(r"\bfreelancer\b", re.IGNORECASE), "frilâncer"),
+    (re.compile(r"\bjob\b", re.IGNORECASE), "djóbi"),
+    (re.compile(r"\bbudget\b", re.IGNORECASE), "bâdjet"),
+    (re.compile(r"\btarget\b", re.IGNORECASE), "tárguet"),
+    (re.compile(r"\bleads?\b", re.IGNORECASE), "líd"),
+    (re.compile(r"\branking\b", re.IGNORECASE), "rânquin"),
+    (re.compile(r"\bknow-how\b", re.IGNORECASE), "nôu ráu"),
+    (re.compile(r"\bQR\s*code\b", re.IGNORECASE), "quê erre côdi"),
+    (re.compile(r"\bsmartwatch\b", re.IGNORECASE), "esmárti uótch"),
+    (re.compile(r"\bheadsets?\b", re.IGNORECASE), "rédséti"),
+    (re.compile(r"\bheadphones?\b", re.IGNORECASE), "réd fóne"),
+    (re.compile(r"\bpen\s*drive\b", re.IGNORECASE), "pên dráive"),
+    (re.compile(r"\bmouse\b", re.IGNORECASE), "máuse"),
+    (re.compile(r"\bplayer\b", re.IGNORECASE), "plêier"),
+    (re.compile(r"\bgames?\b", re.IGNORECASE), "guêime"),
+    (re.compile(r"\bcloud\b", re.IGNORECASE), "cláud"),
+    (re.compile(r"\bdata\s+center\b", re.IGNORECASE), "dêita sênter"),
+    (re.compile(r"\bprint\b", re.IGNORECASE), "prínti"),
+    # ── Marcas e serviços ───────────────────────────────────────────────────────
+    (re.compile(r"\bGoogle\b", re.IGNORECASE), "gúgol"),
+    (re.compile(r"\bGmail\b", re.IGNORECASE), "gê meio"),
+    (re.compile(r"\bOutlook\b", re.IGNORECASE), "áutluk"),
+    (re.compile(r"\bMicrosoft\b", re.IGNORECASE), "máicrossoft"),
+    (re.compile(r"\bWindows\b", re.IGNORECASE), "uíndous"),
+    (re.compile(r"\bAndroid\b", re.IGNORECASE), "andróid"),
+    (re.compile(r"\bApple\b", re.IGNORECASE), "épou"),
+    (re.compile(r"\bSamsung\b", re.IGNORECASE), "sâmsung"),
+    (re.compile(r"\bShopee\b", re.IGNORECASE), "xópi"),
+    (re.compile(r"\bShein\b", re.IGNORECASE), "xiín"),
+    (re.compile(r"\bAliExpress\b", re.IGNORECASE), "áli espréss"),
+    (re.compile(r"\bNubank\b", re.IGNORECASE), "nu bânqui"),
+    (re.compile(r"\bPicPay\b", re.IGNORECASE), "píqui pêi"),
+    (re.compile(r"\bMastercard\b", re.IGNORECASE), "máster cárd"),
+    (re.compile(r"\bBooking\b", re.IGNORECASE), "búquin"),
+    (re.compile(r"\bZoom\b"), "zum"),
+    (re.compile(r"\bTeams\b"), "tíms"),
+    (re.compile(r"\bSkype\b", re.IGNORECASE), "scáipe"),
+    (re.compile(r"\bWaze\b", re.IGNORECASE), "uêize"),
+    (re.compile(r"\bKwai\b", re.IGNORECASE), "cuái"),
+    (re.compile(r"\bTwitch\b", re.IGNORECASE), "tuítch"),
+    (re.compile(r"\bDiscord\b", re.IGNORECASE), "díscord"),
+    (re.compile(r"\bGympass\b", re.IGNORECASE), "djím péss"),
+    (re.compile(r"\bLoggi\b", re.IGNORECASE), "lógui"),
     # ── Pronúncia não óbvia ─────────────────────────────────────────────────────
     (re.compile(r"\bpok[eé]bola\b", re.IGNORECASE), "poquébola"),
     (re.compile(r"\bPokémon\b", re.IGNORECASE), "Pokêmon"),
@@ -323,6 +393,8 @@ def _pontuacao_repetida(m: re.Match[str]) -> str:
 
 
 def _unidade(m: re.Match[str]) -> str:
+    if m.group(2) == "G":
+        return m.group(0)  # 4G e 5G são rede de celular, não gramas
     numero = m.group(1)
     singular, plural = _UNIDADES[m.group(2).lower()]
     return f"{numero} {singular if numero == '1' else plural}"
@@ -561,11 +633,93 @@ _PALAVRAS_NATIVAS: dict[str, str] = {
     "RG": "erre gê",
     "CNH": "cê ene agá",
     "CNPJ": "cê ene pê jota",
+    "CTPS": "cê tê pê esse",
+    "DPVAT": "dê pê vê á tê",
+    "NIS": "ene i esse",
+    "CRLV": "cê erre ele vê",
+    # ── Notas fiscais ───────────────────────────────────────────────────────────
+    "NF-e": "nota fiscal eletrônica",
+    "NFC-e": "nota fiscal de consumidor eletrônica",
+    "NFS-e": "nota fiscal de serviço eletrônica",
+    # ── Impostos e índices (com vogal: sem isto viravam palavra) ─────────────────
+    "IR": "i erre",
+    "IRRF": "i erre erre efe",
+    "ITBI": "i tê bê i",
+    "ITCMD": "i tê cê eme dê",
+    "INPC": "i ene pê cê",
+    "IGPM": "i gê pê eme",
+    "IGP-M": "i gê pê eme",
+    "CET": "cê ê tê",
+    "TEF": "tê ê efe",
+    "DI": "dê i",
+    # ── Saúde ───────────────────────────────────────────────────────────────────
+    "AVC": "á vê cê",
+    "HIV": "agá i vê",
+    "IST": "i esse tê",
+    "IMC": "i eme cê",
+    "ECG": "ê cê gê",
+    "UBS": "u bê esse",
+    "ANS": "á ene esse",
+    # ── Governo, órgãos e lugares ───────────────────────────────────────────────
+    "EUA": "ê u á",
+    "UE": "u ê",
+    "UF": "u efe",
+    "OIT": "ô i tê",
+    "OEA": "ô ê á",
+    # ── Educação ────────────────────────────────────────────────────────────────
+    "EAD": "ê á dê",
+    # ── Tecnologia e telefonia ──────────────────────────────────────────────────
+    "TI": "tê i",
+    "UI": "u i",
+    "UX": "u xis",
+    "IOS": "ai ô esse",
+    "SEO": "esse ê ó",
+    "OK": "oquei",
+    "FAQ": "efe á quê",
+    "CEO": "ci i ôu",
+    "CTO": "ci ti ôu",
+    "CFO": "ci efe ôu",
+    "2G": "dois gê",
+    "3G": "três gê",
+    "4G": "quatro gê",
+    "5G": "cinco gê",
+    "4K": "quatro cá",
+    "8K": "oito cá",
+    "MP3": "eme pê três",
+    "MP4": "eme pê quatro",
+    "USB-C": "u esse bê cê",
+    "WI-FI": "uai fai",
+    "OLX": "ô ele xis",
+    # ── Automóveis ──────────────────────────────────────────────────────────────
+    "SUV": "esse u vê",
+    "ABS": "á bê esse",
 }
 
 # Siglas que também são palavras ou nomes ("eu ia", "ai", "o doc", "Ted"): só trocadas
 # quando escritas em maiúscula. As demais valem em qualquer caixa ("pix", "cpf").
-_SO_MAIUSCULA = frozenset({"IA", "AI", "DOC", "TED", "SLA", "SUS", "RAM", "ROM", "IME", "LED"})
+_SO_MAIUSCULA = frozenset(
+    {
+        "IA",
+        "AI",
+        "DOC",
+        "TED",
+        "SLA",
+        "SUS",
+        "RAM",
+        "ROM",
+        "IME",
+        "LED",
+        # "ir", "ti", "ui", "ué", "di", "uf" e "nis" também são palavras.
+        "IR",
+        "TI",
+        "UI",
+        "UE",
+        "DI",
+        "UF",
+        "NIS",
+        "ABS",
+    }
+)
 _RE_PALAVRAS_NATIVAS = [
     (
         re.compile(rf"\b{re.escape(sigla)}\b", 0 if sigla in _SO_MAIUSCULA else re.IGNORECASE),
@@ -913,6 +1067,10 @@ def _acronimo(m: re.Match[str]) -> str:
     # Siglas com vogal que devem ser soletradas (TED, SUS, CDI…) já foram tratadas
     # por _PALAVRAS_NATIVAS antes desta etapa.
     # Siglas sem vogal (CPF, RG, STF, FGTS…) → soletra letra a letra.
+    # Universidades e institutos federais (UFRJ, UFMG, UERJ, IFSP): têm vogal, mas
+    # ninguém lê como palavra.
+    if len(palavra) >= 3 and palavra[:2] in ("UF", "UE", "IF"):
+        return " ".join(_LETRAS.get(c, c) for c in palavra)
     if any(c in _VOGAIS_UPPER for c in palavra):
         return palavra.lower()
     return " ".join(_LETRAS.get(c, c) for c in palavra)

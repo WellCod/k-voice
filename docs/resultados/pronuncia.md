@@ -104,3 +104,15 @@ Para refazer: `uv run --group bench python -m bench.pronuncia --motor qwen3-cpu 
 O WER de `siglas_04` não mudou, mas o erro mudou de natureza: a voz passou a soletrar e o Whisper escreveu as letras como "ESL", que a comparação não casa com "esse ele á". O "slide" sumiu.
 
 Na mesma execução, `siglas_01` e `siglas_02` saíram com 0% (antes 6% e 7%) e `siglas_03` caiu de 0% para 10% ("apólice" ouvido "A pólice"), sem mudança no texto que essas frases mandam para a voz. É a variação de uma execução para outra, do mesmo tamanho das diferenças medidas; comparar sigla a sigla pede várias execuções por frase.
+
+## Dicionário ampliado — 2026-11-10
+
+Siglas com vogal (AVC, EUA, IR, CEO, SUV, UFRJ…), siglas que também são palavras (IR, TI, UE só em maiúscula), notas fiscais, 4G/5G, MP3 e anglicismos de atendimento e marcas ("e-mail" → "imeio", "site" → "sáite", "Ok" → "oquei", Google, Nubank…). Das 67 frases de `bench/frases.yaml`, três mudam de texto normalizado: `confirmacao_06` ("Ok"), `pergunta_03` e `longa_05` ("e-mail"). As categorias delas foram sintetizadas de novo (mesma máquina, motor e ASR da base; rótulos `qwen3-0.6b-cpu-dicionario-*`):
+
+| Categoria | Frases | WER | Frases que mudaram |
+|---|---|---|---|
+| Confirmação | 6 | 0% | `confirmacao_06`: 0% |
+| Pergunta | 5 | 1,7% | `pergunta_03`: 0% |
+| Frase longa | 5 | 0,7% | `longa_05`: 0% |
+
+As três frases alteradas seguem sem erro. As duas diferenças são em frases de texto inalterado: `pergunta_02` ("caia" saiu "caiaia", repetição da voz) e `longa_02` ("apólice" ouvido "a pólice", já visto em `siglas_03`), variação de uma execução para outra.
