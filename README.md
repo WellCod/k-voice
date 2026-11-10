@@ -10,10 +10,10 @@ O serviço está implementado e testado. A troca da ElevenLabs depende de mediç
 
 | Fase | Entregue | Pendente |
 |---|---|---|
-| 0 — Validação | Benchmarks de síntese, degradação para telefone, página de teste cego ABX/MOS, bench de latência | Rodar o teste cego e registrar o resultado ([PR 5](docs/roadmap.md)) |
-| 1 — Motor e streaming | Qwen3-TTS com streaming e cancelamento, normalização pt-BR, banco, WebSocket, imagem CUDA | Gate: TTFA p95 ≤ 350 ms e cancelamento < 50 ms medidos em GPU |
+| 0 — Validação | Benchmarks de síntese, degradação para telefone, página de teste cego ABX/MOS, bench de latência, bench de pronúncia por transcrição automática | Rodar o teste cego e registrar o resultado ([PR 5](docs/roadmap.md)) |
+| 1 — Motor e streaming | Qwen3-TTS com streaming e cancelamento, normalização pt-BR, banco, WebSocket com várias falas por conexão, cache de áudio, imagem CUDA | Gate: TTFA p95 ≤ 350 ms e cancelamento < 50 ms medidos em GPU |
 | 2 — LiveKit | Plugin TTS com streaming e fallback, roteamento por cliente, carga SIP simulada | Rampa de 1% a 10% do tráfego real |
-| 3 — Lote, MCP e compat | Lote em OGG/Opus, servidor MCP, API compatível com a ElevenLabs, dicionário de pronúncia | Migrar as integrações de WhatsApp |
+| 3 — Lote, MCP e compat | Lote em OGG/Opus, servidor MCP, API compatível com a ElevenLabs, dicionário de pronúncia, vozes por cliente | Migrar as integrações de WhatsApp |
 | 4 — Vozes próprias | Clonagem com consentimento e referência cifrada | Ajuste fino por voz, vozes dos locutores, novo teste cego |
 | 5 — Substituição | — | Painéis de SLO, segunda região, rampa a 100% |
 
@@ -23,18 +23,19 @@ Detalhe por PR em [docs/roadmap.md](docs/roadmap.md).
 
 | Recurso | Como funciona |
 |---|---|
-| **Streaming** (`WS /v1/tts/stream`) | O texto chega em pedaços, como sai de um LLM. Cada frase completa vai para o motor na hora; em GPU, o `faster-qwen3-tts` envia o primeiro pedaço de áudio antes de terminar a frase. PCM 16-bit 24 kHz, cancelamento imediato (barge-in) e `flushed` alinhado ao fim do áudio de cada trecho. |
-| **Lote** (`POST /v1/tts`) | OGG/Opus, MP3 ou WAV, devolvido no corpo ou gravado em S3 com URL assinada e expiração. Textos longos são divididos por frase e unidos com 60 ms de pausa. |
+| **Streaming** (`WS /v1/tts/stream`) | O texto chega em pedaços, como sai de um LLM. Cada frase completa vai para o motor na hora; em GPU, o `faster-qwen3-tts` envia o primeiro pedaço de áudio antes de terminar a frase. PCM 16-bit 24 kHz, cancelamento imediato (barge-in), inclusive depois do `end`, e `flushed` alinhado ao fim do áudio de cada trecho. Depois do `done`, a mesma conexão aceita a próxima fala, sem nova autenticação. Até 10.000 caracteres por fala; texto sem fim de frase vai ao motor em pedaços de até 600. |
+| **Lote** (`POST /v1/tts`) | OGG/Opus, MP3 ou WAV, devolvido no corpo ou gravado em S3 com URL assinada e expiração. Até 10.000 caracteres; textos longos são divididos por frase e unidos com 60 ms de pausa (o compat e o MCP fazem igual). |
 | **Normalização pt-BR** | Determinística e testada por tabela: moeda, datas, horas, intervalos, CPF/CNPJ, CEP, telefone, URL e e-mail, unidades, ordinais, porcentagem, decimais, número no feminino ("duas parcelas", "vinte e uma horas"), siglas soletradas ou lidas como palavra (com as que também são palavras, como "IR" e "TI", trocadas só em maiúscula), anglicismos e marcas. O dicionário por cliente troca só palavras inteiras. No streaming, só normaliza até um limite seguro para não ler "R$ 1.2" antes de virar "R$ 1.234,50". |
 | **Dicionário de pronúncia** | Global ou por cliente, literal ou regex, aplicado nos quatro caminhos. No streaming vale mesmo com o termo partido entre dois pedaços do LLM. |
-| **Vozes** | Preset (speakers do Qwen3 CustomVoice) e clonadas a partir de referência (Qwen3 Base). |
+| **Vozes** | Preset (speakers do Qwen3 CustomVoice) e clonadas a partir de referência (Qwen3 Base). Voz sem dono é do catálogo e vale para todos; voz com dono (sempre, na clonagem) só aparece e só sintetiza para aquele cliente. |
 | **Clonagem** | O upload passa por ffmpeg (corte de silêncio, loudnorm, WAV 16 kHz mono) e exige 5 s de fala limpa. Cada referência registra consentimento em `voice_consent` ([ADR-0007](docs/adr/0007-vozes-proprias-com-consentimento.md)) e é gravada cifrada; o motor decifra para um temporário só durante a geração. |
-| **Roteamento e fallback** | Por cliente: só k-voice, só ElevenLabs ou percentual. Com a fila do motor cheia, cai para a ElevenLabs em vez de atrasar a fala. |
+| **Roteamento e fallback** | Por cliente: só k-voice, só ElevenLabs ou percentual. Com a fila do motor cheia, cai para a ElevenLabs em vez de atrasar a fala, usando a voz equivalente cadastrada (na voz ou no mapa da regra do cliente). Sem voz equivalente, responde `capacity` e o plugin do LiveKit faz o fallback. |
 | **Compatibilidade ElevenLabs** | `POST /v1/text-to-speech/{voice_id}` com `xi-api-key`: integração existente troca só a URL base e a chave ([ADR-0008](docs/adr/0008-compatibilidade-api-elevenlabs.md)). |
 | **MCP** | `synthesize`, `list_voices` e `get_voice` em `/mcp` (Streamable HTTP), só lote ([ADR-0006](docs/adr/0006-mcp-so-para-lote.md)). |
 | **Plugin LiveKit** | `kvoice.livekit.TTS` com streaming e cancelamento; `create_tts` monta o `FallbackAdapter` com a ElevenLabs. |
-| **Medição** | Uma linha por fala em `usage_event` (caracteres, áudio, TTFA, motor, fallback) e métricas Prometheus em `/metrics`. |
-| **Painel demo** | `/demo`: criar vozes preset ou clonadas, gravar referência pelo microfone e testar a síntese. |
+| **Cache de áudio** | Frase curta repetida ("Um momento, por favor.") sai da memória a partir da segunda vez, sem passar pela GPU. Por frase, com a voz inteira, o estilo e a velocidade na chave; limpo quando a voz muda. |
+| **Medição** | Uma linha por fala em `usage_event` (caracteres, áudio, TTFA, motor, fallback) e métricas Prometheus em `/metrics`, incluindo acertos do cache. |
+| **Painel demo** | `/demo`: criar e editar vozes (instrução, voz equivalente na ElevenLabs, cliente dono), clonar com referência gravada pelo microfone, testar a síntese e administrar clientes, tokens e dicionário. Funciona no celular. |
 
 ## Como funciona
 
@@ -116,6 +117,8 @@ Sobe Postgres, MinIO, a migração e o servidor na porta 8000 com a GPU reservad
 | TTFA p50 / p95 em GPU | ≤ 200 / ≤ 350 ms | pendente ([docs/gpu-nuvem.md](docs/gpu-nuvem.md)) |
 | Cancelamento | < 50 ms | pendente em GPU; em teste, não espera a geração em curso |
 | RTF sob carga | < 0,5 | pendente |
+| Pronúncia (WER por transcrição) | — | 1,7% nas 67 frases, Qwen3 0.6B em CPU ([resultados](docs/resultados/pronuncia.md)) |
+| Consultas ao banco antes do primeiro áudio | — | 29–30 ms p50, 36–45 ms p95, banco local ([resultados](docs/resultados/consultas-ws.md)) |
 
 Afirmações de latência e qualidade só valem com medição no repositório (`bench/`), com hardware, versão e data. Números de fabricante ficam em [docs/modelos.md](docs/modelos.md), marcados como tal.
 
@@ -132,7 +135,7 @@ Pesos com licença não comercial ficam fora. Versões, compatibilidade e mediç
 
 ## Engenharia
 
-- 176 testes (pytest), integração com Postgres real via testcontainers, mypy strict e ruff no CI.
+- 329 testes (pytest), integração com Postgres real via testcontainers, mypy strict e ruff no CI.
 - Toda mudança na normalização ou no motor roda a tabela de regressão (`tests/normalize/casos.yaml` e `bench/frases.yaml`).
 - Decisões em [ADRs](docs/adr/); segredos só por ambiente; tokens de cliente guardados como hash; token do WebSocket ocultado nos logs.
 
@@ -150,4 +153,5 @@ Pesos com licença não comercial ficam fora. Versões, compatibilidade e mediç
 | [docs/gpu-nuvem.md](docs/gpu-nuvem.md) | Roteiro de validação em GPU alugada |
 | [docs/bench-mac.md](docs/bench-mac.md) | Bench de pronúncia 0.6B contra 1.7B num Mac com Apple Silicon |
 | [docs/teste-cego.md](docs/teste-cego.md) | Metodologia do gate de qualidade |
+| [docs/resultados/](docs/resultados/) | Medições registradas: pronúncia e consultas antes do primeiro áudio |
 | [docs/adr/](docs/adr/) | Decisões de arquitetura |
