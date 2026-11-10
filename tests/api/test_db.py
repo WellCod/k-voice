@@ -200,7 +200,13 @@ async def test_listagem_de_vozes_so_traz_catalogo_e_as_do_cliente(db: AsyncSessi
     await db.commit()
 
     async def ids(client_id: uuid.UUID, admin: bool = False) -> set[str]:
-        res = await db.execute(select(Voice.id).where(Voice.filtro_visivel(client_id, admin)))
+        # O banco é compartilhado entre os testes: olha só as vozes criadas aqui.
+        res = await db.execute(
+            select(Voice.id).where(
+                Voice.id.in_(["v_global", "v_de_a", "v_de_b"]),
+                Voice.filtro_visivel(client_id, admin),
+            )
+        )
         return set(res.scalars().all())
 
     assert await ids(a.id) == {"v_global", "v_de_a"}
