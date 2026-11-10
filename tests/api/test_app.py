@@ -184,3 +184,22 @@ def test_voz_equivalente_na_elevenlabs_aceita_id_e_vazio_no_patch() -> None:
         VoiceCreate(id="v_ok", name="Voz", origin="preset", elevenlabs_voice_id="")
     with pytest.raises(ValidationError):
         VoicePatch(elevenlabs_voice_id="../x")
+
+
+def test_voz_de_outro_cliente_nao_e_visivel() -> None:
+    import uuid
+
+    from kvoice.db.models import Voice, VoiceOrigin
+
+    dono, outro = uuid.uuid4(), uuid.uuid4()
+    catalogo = Voice(id="v_cat", name="Cat", origin=VoiceOrigin.preset, is_active=True)
+    privada = Voice(
+        id="v_priv", name="Priv", origin=VoiceOrigin.clone, is_active=True, client_id=dono
+    )
+    inativa = Voice(id="v_off", name="Off", origin=VoiceOrigin.preset, is_active=False)
+
+    assert catalogo.visivel_para(outro)
+    assert privada.visivel_para(dono)
+    assert not privada.visivel_para(outro)
+    assert privada.visivel_para(outro, admin=True)
+    assert not inativa.visivel_para(outro, admin=True)

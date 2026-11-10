@@ -108,6 +108,8 @@ def fake_voice() -> Any:
         ref_audio_key=None,
         ref_text=None,
         elevenlabs_voice_id=None,
+        client_id=None,
+        visivel_para=lambda client_id, admin=False: True,
     )
 
 

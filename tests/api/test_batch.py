@@ -268,3 +268,32 @@ def test_lote_sem_escopo() -> None:
         resp = client.post("/v1/tts", json={"text": "Olá", "voice_id": "v_fake"})
 
     assert resp.status_code == 403
+
+
+def test_lote_com_voz_de_outro_cliente_responde_404() -> None:
+    from kvoice.db.models import Voice, VoiceOrigin
+
+    def _so_lote(scope: str) -> bool:
+        return scope == "tts:batch"
+
+    fc = _fake_client()
+    ft = types.SimpleNamespace(scopes="tts:batch", is_active=True, name="tok", has_scope=_so_lote)
+    voz_alheia = Voice(
+        id="v_fake",
+        name="Clone de outro cliente",
+        origin=VoiceOrigin.clone,
+        is_active=True,
+        client_id=uuid.uuid4(),
+    )
+    app = _make_app()
+    _setup_app(app, fc, ft, voz_alheia)
+    decidir = AsyncMock(return_value=_kvoice_decision())
+
+    with (
+        patch("kvoice.api.routers.tts.decide_engine", decidir),
+        TestClient(app) as client,
+    ):
+        resp = client.post("/v1/tts", json={"text": "Olá", "voice_id": "v_fake"})
+
+    assert resp.status_code == 404
+    decidir.assert_not_awaited()

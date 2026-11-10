@@ -76,7 +76,7 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
         )
 
     orm_voice = await db.get(DbVoice, body.voice_id)
-    if orm_voice is None or not orm_voice.is_active:
+    if orm_voice is None or not orm_voice.visivel_para(client.id, token.has_scope("admin")):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voz não encontrada")
 
     t0 = time.monotonic()
@@ -183,7 +183,7 @@ async def ws_stream(websocket: WebSocket, token: str = Query(...)) -> None:
     streams_started.inc()
     streams_active.inc()
     try:
-        await _executar_stream(websocket, client)
+        await _executar_stream(websocket, client, admin=api_token.has_scope("admin"))
     except Exception:
         streams_errors.labels(code="internal").inc()
         raise
@@ -194,6 +194,7 @@ async def ws_stream(websocket: WebSocket, token: str = Query(...)) -> None:
 async def _executar_stream(
     websocket: WebSocket,
     client: Client,
+    admin: bool = False,
 ) -> None:
     try:
         raw = await websocket.receive_text()
@@ -209,7 +210,7 @@ async def _executar_stream(
     start = first_msg
 
     orm_voice = await _buscar_voz(start.voice_id)
-    if orm_voice is None or not orm_voice.is_active:
+    if orm_voice is None or not orm_voice.visivel_para(client.id, admin):
         await websocket.send_json({"type": "error", "code": "voice_not_found"})
         await websocket.close()
         return

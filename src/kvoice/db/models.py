@@ -4,7 +4,20 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    ColumnElement,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    func,
+    or_,
+    true,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -97,12 +110,28 @@ class Voice(Base):
     # Voz equivalente na ElevenLabs, usada quando a fala cai no fallback. Sem ela a fala
     # não vai para a ElevenLabs: um id do k-voice lá dá erro.
     elevenlabs_voice_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Dono da voz. Nulo: voz do catálogo, visível a todos os clientes. Voz clonada de uma
+    # pessoa fica presa ao cliente que coletou o consentimento (ADR-0007).
+    client_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("client.id"), nullable=True, index=True
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     consents: Mapped[list[VoiceConsent]] = relationship(back_populates="voice", lazy="raise")
+
+    def visivel_para(self, client_id: uuid.UUID, admin: bool = False) -> bool:
+        """Voz ativa que o cliente pode usar: do catálogo, dele, ou qualquer uma para admin."""
+        return self.is_active and (admin or self.client_id is None or self.client_id == client_id)
+
+    @staticmethod
+    def filtro_visivel(client_id: uuid.UUID, admin: bool = False) -> ColumnElement[bool]:
+        """Mesma regra de `visivel_para`, para consultas de listagem."""
+        if admin:
+            return true()
+        return or_(Voice.client_id.is_(None), Voice.client_id == client_id)
 
 
 class VoiceConsent(Base):

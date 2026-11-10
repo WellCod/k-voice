@@ -79,6 +79,8 @@ class VoiceCreate(BaseModel):
     model_id: str | None = Field(default=None, max_length=255)
     style_prompt: str | None = None
     elevenlabs_voice_id: str | None = Field(default=None, max_length=64, pattern=_ID_VOZ_ELEVENLABS)
+    # Cliente dono; sem ele a voz é do catálogo e todos os clientes a usam.
+    client_id: uuid.UUID | None = None
 
 
 class VoicePatch(BaseModel):
@@ -103,6 +105,7 @@ class VoiceResponse(BaseModel):
     model_id: str | None
     style_prompt: str | None
     elevenlabs_voice_id: str | None = None
+    client_id: uuid.UUID | None = None
     is_active: bool
     created_at: datetime
 
