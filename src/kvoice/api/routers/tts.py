@@ -55,6 +55,8 @@ _tarefas_uso: set[asyncio.Task[None]] = set()
 
 _EXT: dict[str, str] = {"ogg_opus": "ogg", "mp3_44100": "mp3", "wav_24000": "wav"}
 _FLUSH = object()
+# Depois do "done", a conexão espera o próximo "start" por este tempo antes de fechar.
+_OCIOSO_ENTRE_FALAS_S = 60.0
 
 
 async def _autenticar_ws(token: str) -> tuple[Client, ApiToken] | None:
@@ -180,7 +182,6 @@ async def ws_stream(websocket: WebSocket, token: str = Query(...)) -> None:
         await websocket.close(code=4003)
         return
 
-    streams_started.inc()
     streams_active.inc()
     try:
         await _executar_stream(websocket, client, admin=api_token.has_scope("admin"))
@@ -191,40 +192,67 @@ async def ws_stream(websocket: WebSocket, token: str = Query(...)) -> None:
         streams_active.dec()
 
 
+async def _proximo_start(websocket: WebSocket, timeout: float | None) -> StartMsg | None:
+    """Espera o "start" da próxima fala. None: o cliente fechou, ficou ocioso ou errou."""
+    try:
+        raw = await asyncio.wait_for(websocket.receive_text(), timeout)
+        msg = parse_client_msg(raw)
+    except (WebSocketDisconnect, ValidationError, TimeoutError):
+        return None
+    if isinstance(msg, StartMsg):
+        return msg
+    if not isinstance(msg, EndMsg):
+        await websocket.send_json({"type": "error", "code": "protocol"})
+    return None
+
+
 async def _executar_stream(
     websocket: WebSocket,
     client: Client,
     admin: bool = False,
 ) -> None:
-    try:
-        raw = await websocket.receive_text()
-        first_msg = parse_client_msg(raw)
-    except (WebSocketDisconnect, ValidationError):
+    """Uma ou mais falas na mesma conexão.
+
+    Depois do "done", o cliente pode mandar outro "start" e reaproveitar a conexão e a
+    autenticação. A voz e o dicionário são carregados de novo só quando a voz muda; a
+    decisão de motor é refeita a cada fala, porque a fila muda. Mandar "end" fora de uma
+    fala, fechar o socket ou ficar ocioso encerra a conexão.
+    """
+    start = await _proximo_start(websocket, timeout=None)
+    if start is None:
+        with contextlib.suppress(Exception):
+            await websocket.close()
         return
 
-    if not isinstance(first_msg, StartMsg):
-        await websocket.send_json({"type": "error", "code": "protocol"})
+    orm_voice: DbVoice | None = None
+    pron: list[PronEntry] | None = None
+    while start is not None:
+        if orm_voice is None or orm_voice.id != start.voice_id:
+            orm_voice = await _buscar_voz(start.voice_id)
+            if orm_voice is None or not orm_voice.visivel_para(client.id, admin):
+                await websocket.send_json({"type": "error", "code": "voice_not_found"})
+                await websocket.close()
+                return
+
+        decision = await decide_engine(client.id, start.voice_id, orm_voice.elevenlabs_voice_id)
+        if decision is None:
+            await websocket.send_json({"type": "error", "code": "capacity"})
+            await websocket.close(code=1013)
+            return
+
+        if pron is None:
+            # Uma consulta por conexão, fora do caminho crítico do áudio.
+            pron = await load_dict(client.id)
+        streams_started.inc()
+        continuar, proxima = await _executar_com_engine(
+            websocket, client, start, orm_voice, decision, pron
+        )
+        if not continuar:
+            return
+        start = proxima or await _proximo_start(websocket, timeout=_OCIOSO_ENTRE_FALAS_S)
+
+    with contextlib.suppress(Exception):
         await websocket.close()
-        return
-
-    start = first_msg
-
-    orm_voice = await _buscar_voz(start.voice_id)
-    if orm_voice is None or not orm_voice.visivel_para(client.id, admin):
-        await websocket.send_json({"type": "error", "code": "voice_not_found"})
-        await websocket.close()
-        return
-
-    decision = await decide_engine(client.id, start.voice_id, orm_voice.elevenlabs_voice_id)
-
-    if decision is None:
-        await websocket.send_json({"type": "error", "code": "capacity"})
-        await websocket.close(code=1013)
-        return
-
-    # Uma consulta no início da fala, fora do caminho crítico do áudio.
-    pron = await load_dict(client.id)
-    await _executar_com_engine(websocket, client, start, orm_voice, decision, pron)
 
 
 async def _executar_com_engine(
@@ -234,7 +262,8 @@ async def _executar_com_engine(
     orm_voice: DbVoice,
     decision: RoutingDecision,
     pron: list[PronEntry],
-) -> None:
+) -> tuple[bool, StartMsg | None]:
+    """Roda uma fala. Devolve (a conexão segue aberta?, "start" da próxima fala já lido)."""
     engine = decision.engine
     voice = decision.voz(orm_voice)
     opts = SynthOptions(
@@ -341,6 +370,7 @@ async def _executar_com_engine(
             await send_queue.put({"type": "error", "code": "engine"})
 
     cancelled_by_client = False
+    proxima_fala: StartMsg | None = None
 
     def _interromper() -> None:
         nonlocal cancelled_by_client
@@ -369,7 +399,7 @@ async def _executar_com_engine(
     async def _reader() -> None:
         # Continua lendo depois do "end": o barge-in chega como "cancel" enquanto o
         # áudio do turno ainda está saindo, e precisa parar o motor.
-        nonlocal total_chars
+        nonlocal total_chars, proxima_fala
         encerrado = False
         try:
             async for raw in websocket.iter_text():
@@ -381,6 +411,10 @@ async def _executar_com_engine(
                     _interromper()
                     return
                 if encerrado:
+                    if isinstance(msg, StartMsg):
+                        # Próxima fala chegou antes do "done" desta: guarda e para de ler.
+                        proxima_fala = msg
+                        return
                     continue
                 if isinstance(msg, TextMsg):
                     total_chars += len(msg.text)
@@ -421,7 +455,7 @@ async def _executar_com_engine(
     if falhou and not cancelled_by_client:
         with contextlib.suppress(Exception):
             await websocket.close(code=1011)
-        return
+        return False, None
 
     if not cancelled_by_client:
         streams_done.inc()
@@ -451,7 +485,8 @@ async def _executar_com_engine(
         )
         _tarefas_uso.add(task)
         task.add_done_callback(_tarefas_uso.discard)
-    else:
-        streams_cancelled.inc()
-        with contextlib.suppress(Exception):
-            await websocket.close()
+        return True, proxima_fala
+    streams_cancelled.inc()
+    with contextlib.suppress(Exception):
+        await websocket.close()
+    return False, None
