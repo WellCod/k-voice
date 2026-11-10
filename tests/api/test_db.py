@@ -182,3 +182,27 @@ async def test_criar_admin_gera_token_que_autentica(engine: Any) -> None:
     assert voz is not None
     assert voz.model_id == "serena"
     assert voz.origin == VoiceOrigin.preset
+
+
+async def test_listagem_de_vozes_so_traz_catalogo_e_as_do_cliente(db: AsyncSession) -> None:
+    from sqlalchemy import select
+
+    a, b = Client(name="A"), Client(name="B")
+    db.add_all([a, b])
+    await db.flush()
+    db.add_all(
+        [
+            Voice(id="v_global", name="Global", origin=VoiceOrigin.preset),
+            Voice(id="v_de_a", name="De A", origin=VoiceOrigin.clone, client_id=a.id),
+            Voice(id="v_de_b", name="De B", origin=VoiceOrigin.clone, client_id=b.id),
+        ]
+    )
+    await db.commit()
+
+    async def ids(client_id: uuid.UUID, admin: bool = False) -> set[str]:
+        res = await db.execute(select(Voice.id).where(Voice.filtro_visivel(client_id, admin)))
+        return set(res.scalars().all())
+
+    assert await ids(a.id) == {"v_global", "v_de_a"}
+    assert await ids(b.id) == {"v_global", "v_de_b"}
+    assert await ids(a.id, admin=True) == {"v_global", "v_de_a", "v_de_b"}

@@ -124,6 +124,8 @@ async def criar_voz(body: VoiceCreate, db: DbSession) -> Voice:
     existing = await db.get(Voice, body.id)
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="ID de voz já existe")
+    if body.client_id is not None and await db.get(Client, body.client_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente não encontrado")
     voice = Voice(
         id=body.id,
         name=body.name,
@@ -135,6 +137,7 @@ async def criar_voz(body: VoiceCreate, db: DbSession) -> Voice:
         model_id=body.model_id,
         style_prompt=body.style_prompt,
         elevenlabs_voice_id=body.elevenlabs_voice_id,
+        client_id=body.client_id,
     )
     db.add(voice)
     await db.commit()

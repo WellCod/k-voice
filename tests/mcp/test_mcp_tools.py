@@ -205,7 +205,7 @@ async def test_list_voices_com_filtro_language() -> None:
     ):
         await list_voices(language="pt-BR", ctx=_fake_ctx())
 
-    mock_listar.assert_awaited_once_with(language="pt-BR")
+    mock_listar.assert_awaited_once_with(fc.id, True, language="pt-BR")
 
 
 # ---------------------------------------------------------------------------

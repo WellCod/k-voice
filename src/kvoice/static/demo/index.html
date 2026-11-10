@@ -806,6 +806,11 @@
       <input type="text" id="nv-eleven" placeholder="Ex.: 21m00Tcm4TlvDq8ikWAM" maxlength="64" autocomplete="off">
       <div class="fhint">Usada quando a fala cai no fallback. Sem ela, a fala não vai para a ElevenLabs.</div>
     </div>
+    <div class="fgrp">
+      <label class="lbl" for="nv-dono">Cliente dono</label>
+      <select id="nv-dono"><option value="">Catálogo (todos os clientes)</option></select>
+      <div class="fhint">Com dono, só aquele cliente usa a voz.</div>
+    </div>
     <details style="margin-bottom:14px">
       <summary class="xs muted" style="cursor:pointer;user-select:none">Metadados opcionais ▾</summary>
       <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -859,6 +864,11 @@
             <option value="es-ES">es-ES</option>
           </select>
         </div>
+      </div>
+      <div class="fgrp">
+        <label class="lbl" for="cv-dono">Cliente dono <span style="color:var(--red)">*</span></label>
+        <select id="cv-dono"><option value="">Selecione o cliente</option></select>
+        <div class="fhint">A voz clonada fica restrita ao cliente que coletou o consentimento.</div>
       </div>
     </div>
     <input type="hidden" id="cv-auto-id">
@@ -1318,6 +1328,9 @@ async function loadVoices() {
   g.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⏳</div><div class="empty-txt">Carregando…</div></div>';
   try {
     _voices = await api('GET', '/v1/voices') || [];
+    if (!_clients.length && _voices.some(v => v.client_id)) {
+      try { _clients = await api('GET', '/admin/clients') || []; } catch { /* sem admin */ }
+    }
     renderVoices();
   } catch (e) {
     g.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚠️</div><div class="empty-txt">${esc(e.message)}</div></div>`;
@@ -1347,6 +1360,9 @@ function renderVoices() {
         ${v.elevenlabs_voice_id
           ? `<span class="badge bk" title="Fallback: ${esc(v.elevenlabs_voice_id)}">fallback ✓</span>`
           : '<span class="badge br" title="Sem voz equivalente na ElevenLabs">sem fallback</span>'}
+        ${v.client_id
+          ? `<span class="badge by" title="Só este cliente usa a voz">🔒 ${esc(nomeDoDono(v.client_id))}</span>`
+          : ''}
       </div>
       <div class="vc-foot" style="gap:6px">
         ${v.origin === 'clone' ? `<button type="button" class="btn btn-ghost btn-sm" data-act="ref" data-vid="${esc(v.id)}">🔄 Ref.</button>` : ''}
@@ -1730,7 +1746,21 @@ function openPresetM() {
   document.getElementById('nv-lang').value = 'pt-BR';
   document.getElementById('nv-gender').value = '';
   document.getElementById('nv-model').value = '';
+  preencherDonos('nv-dono', 'Catálogo (todos os clientes)');
   openM('m-new-voice');
+}
+
+async function preencherDonos(selId, rotuloVazio) {
+  const sel = document.getElementById(selId);
+  try {
+    if (!_clients.length) _clients = await api('GET', '/admin/clients') || [];
+  } catch { /* sem escopo admin: fica só a opção vazia */ }
+  sel.innerHTML = `<option value="">${esc(rotuloVazio)}</option>` +
+    _clients.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+}
+
+function nomeDoDono(clientId) {
+  return _clients.find(c => c.id === clientId)?.name || 'outro cliente';
 }
 
 async function createVoice() {
@@ -1749,6 +1779,7 @@ async function createVoice() {
     model_id: document.getElementById('nv-model').value || null,
     style_prompt: document.getElementById('nv-style-prompt').value.trim() || null,
     elevenlabs_voice_id: document.getElementById('nv-eleven').value.trim() || null,
+    client_id: document.getElementById('nv-dono').value || null,
     origin: 'preset',
   };
   try {
@@ -1784,6 +1815,7 @@ function openCloneNewM() {
   document.getElementById('cv-submit').textContent = 'Clonar voz';
   clearRef();
   setCvTab('rec', document.getElementById('cv-tab-rec'));
+  preencherDonos('cv-dono', 'Selecione o cliente');
   openM('m-clone-voice');
 }
 
@@ -1906,6 +1938,10 @@ async function submitClone() {
     if (!vname) { toast('Nome da voz é obrigatório', 'err'); return; }
     newId = document.getElementById('cv-auto-id').value || slugify(vname);
     if (!newId) { toast('O nome precisa ter letras ou números', 'err'); return; }
+    if (!document.getElementById('cv-dono').value) {
+      toast('Escolha o cliente dono da voz clonada', 'err');
+      return;
+    }
   }
 
   const btn = document.getElementById('cv-submit');
@@ -1917,6 +1953,7 @@ async function submitClone() {
       const created = await api('POST', '/admin/voices', {
         id: newId, name: vname,
         language: document.getElementById('cv-lang').value,
+        client_id: document.getElementById('cv-dono').value,
         origin: 'clone',
       });
       if (!created) return;

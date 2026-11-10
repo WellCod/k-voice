@@ -89,12 +89,12 @@ async def text_to_speech(
     authorization: Annotated[str | None, Header()] = None,
 ) -> Response:
     """POST /v1/text-to-speech/{voice_id} compatível com a ElevenLabs."""
-    client, _token = await _autenticar(xi_api_key, authorization)
+    client, token = await _autenticar(xi_api_key, authorization)
 
     our_format = _map_format(output_format)
 
     orm_voice = await _buscar_voz(voice_id)
-    if orm_voice is None or not orm_voice.is_active:
+    if orm_voice is None or not orm_voice.visivel_para(client.id, token.has_scope("admin")):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voz não encontrada")
 
     t0 = time.monotonic()

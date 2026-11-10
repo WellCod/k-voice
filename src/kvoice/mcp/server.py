@@ -51,9 +51,15 @@ async def _buscar_voz(voice_id: str) -> DbVoice | None:
         return await db.get(DbVoice, voice_id)
 
 
-async def _listar_vozes(language: str | None = None) -> list[DbVoice]:
+async def _listar_vozes(
+    client_id: uuid.UUID, admin: bool, language: str | None = None
+) -> list[DbVoice]:
     async with session_factory()() as db:
-        stmt = select(DbVoice).where(DbVoice.is_active.is_(True)).order_by(DbVoice.name)
+        stmt = (
+            select(DbVoice)
+            .where(DbVoice.is_active.is_(True), DbVoice.filtro_visivel(client_id, admin))
+            .order_by(DbVoice.name)
+        )
         if language is not None:
             stmt = stmt.where(DbVoice.language == language)
         result = await db.execute(stmt)
@@ -116,10 +122,10 @@ async def synthesize(
     if not 60 <= url_ttl_s <= 604_800:
         raise MCPError(-32602, "url_ttl_s deve estar entre 60 e 604800.")
 
-    client, _token = await _auth(ctx, "tts:batch")
+    client, token = await _auth(ctx, "tts:batch")
 
     orm_voice = await _buscar_voz(voice_id)
-    if orm_voice is None or not orm_voice.is_active:
+    if orm_voice is None or not orm_voice.visivel_para(client.id, token.has_scope("admin")):
         raise MCPError(-32000, f"Voz {voice_id!r} não encontrada.")
 
     t0 = time.monotonic()
@@ -173,8 +179,8 @@ async def list_voices(
     """
     Retorna vozes ativas. Filtre por language (ex: 'pt-BR').
     """
-    await _auth(ctx, "voices:read")
-    vozes = await _listar_vozes(language=language)
+    client, token = await _auth(ctx, "voices:read")
+    vozes = await _listar_vozes(client.id, token.has_scope("admin"), language=language)
     return [_voice_to_dict(v) for v in vozes]
 
 
@@ -186,8 +192,8 @@ async def get_voice(
     """
     Busca voz por ID. Levanta erro se não encontrada ou inativa.
     """
-    await _auth(ctx, "voices:read")
+    client, token = await _auth(ctx, "voices:read")
     voz = await _buscar_voz(voice_id)
-    if voz is None or not voz.is_active:
+    if voz is None or not voz.visivel_para(client.id, token.has_scope("admin")):
         raise MCPError(-32000, f"Voz {voice_id!r} não encontrada.")
     return _voice_to_dict(voz)
