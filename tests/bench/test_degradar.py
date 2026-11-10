@@ -39,7 +39,8 @@ def test_bandpass_atenua_dc() -> None:
     """Componente DC (0 Hz) deve ser atenuada pelo passa-banda."""
     dc = np.ones(int(_SR * _DURACAO_S), dtype=np.float32) * 0.5
     saida = _bandpass(dc, _SR)
-    assert float(np.abs(saida).max()) < 0.05
+    # O degrau no início gera um transiente no filtro; o que importa é o regime.
+    assert float(np.abs(saida[int(0.1 * _SR) :]).max()) < 0.05
 
 
 def test_bandpass_passa_voz() -> None:
