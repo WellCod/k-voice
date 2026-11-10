@@ -212,3 +212,30 @@ async def test_listagem_de_vozes_so_traz_catalogo_e_as_do_cliente(db: AsyncSessi
     assert await ids(a.id) == {"v_global", "v_de_a"}
     assert await ids(b.id) == {"v_global", "v_de_b"}
     assert await ids(a.id, admin=True) == {"v_global", "v_de_a", "v_de_b"}
+
+
+async def test_patch_troca_e_remove_o_dono_da_voz(db: AsyncSession) -> None:
+    from fastapi import HTTPException
+
+    from kvoice.api.routers.admin import atualizar_voz
+    from kvoice.api.schemas import VoicePatch
+
+    cliente = Client(name="Dono")
+    db.add(cliente)
+    await db.flush()
+    db.add(Voice(id="v_dono_patch", name="Patch", origin=VoiceOrigin.clone))
+    await db.commit()
+
+    voz = await atualizar_voz(
+        "v_dono_patch", VoicePatch.model_validate({"client_id": str(cliente.id)}), db
+    )
+    assert voz.client_id == cliente.id
+    voz = await atualizar_voz("v_dono_patch", VoicePatch(style_prompt="x"), db)
+    assert voz.client_id == cliente.id
+    voz = await atualizar_voz("v_dono_patch", VoicePatch.model_validate({"client_id": None}), db)
+    assert voz.client_id is None
+    with pytest.raises(HTTPException) as erro:
+        await atualizar_voz(
+            "v_dono_patch", VoicePatch.model_validate({"client_id": str(uuid.uuid4())}), db
+        )
+    assert erro.value.status_code == 404

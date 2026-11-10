@@ -160,6 +160,12 @@ async def atualizar_voz(voice_id: str, body: VoicePatch, db: DbSession) -> Voice
         voice.model_id = body.model_id or None
     if body.elevenlabs_voice_id is not None:
         voice.elevenlabs_voice_id = body.elevenlabs_voice_id or None
+    if "client_id" in body.model_fields_set:
+        if body.client_id is not None and await db.get(Client, body.client_id) is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Cliente não encontrado"
+            )
+        voice.client_id = body.client_id
     await db.commit()
     await db.refresh(voice)
     return voice

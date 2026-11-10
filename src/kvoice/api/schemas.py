@@ -90,6 +90,8 @@ class VoicePatch(BaseModel):
     elevenlabs_voice_id: str | None = Field(
         default=None, max_length=64, pattern=_ID_VOZ_ELEVENLABS_OU_VAZIO
     )
+    # Ausente: não muda. null: volta para o catálogo. UUID: passa a ser do cliente.
+    client_id: uuid.UUID | None = None
 
 
 class VoiceResponse(BaseModel):

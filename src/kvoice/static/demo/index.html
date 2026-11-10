@@ -967,6 +967,11 @@
       <input type="text" id="mp-eleven" placeholder="Ex.: 21m00Tcm4TlvDq8ikWAM" maxlength="64" autocomplete="off">
       <div class="fhint">Usada no fallback. Em branco, a fala não vai para a ElevenLabs; o mapa da regra do cliente tem prioridade.</div>
     </div>
+    <div class="fgrp mt16" style="margin-bottom:0">
+      <label class="lbl" for="mp-dono">Cliente dono</label>
+      <select id="mp-dono"><option value="">Catálogo (todos os clientes)</option></select>
+      <div class="fhint">Com dono, só aquele cliente lista e usa a voz.</div>
+    </div>
     <div class="modal-ft">
       <button class="btn btn-secondary" onclick="closeM('m-prompt')">Cancelar</button>
       <button class="btn btn-primary" onclick="savePrompt()">Salvar</button>
@@ -1379,7 +1384,7 @@ document.getElementById('voice-grid').addEventListener('click', e => {
   const v = _voices.find(x => x.id === btn.dataset.vid);
   if (!v) return;
   if (btn.dataset.act === 'ref') openCloneUpdateM(v.id, v.name);
-  else if (btn.dataset.act === 'prompt') openPromptM(v.id, v.name, v.style_prompt || '', v.elevenlabs_voice_id || '');
+  else if (btn.dataset.act === 'prompt') openPromptM(v);
   else if (btn.dataset.act === 'test') testVoice(v.id);
 });
 
@@ -1988,12 +1993,14 @@ async function submitClone() {
 }
 
 // ─── Style Prompt Editor ──────────────────────────────────────────────────────
-function openPromptM(vid, vname, current, eleven) {
-  document.getElementById('mp-vid').value = vid;
-  document.getElementById('mp-name').textContent = vname;
-  document.getElementById('mp-prompt').value = current || '';
-  document.getElementById('mp-eleven').value = eleven || '';
+async function openPromptM(v) {
+  document.getElementById('mp-vid').value = v.id;
+  document.getElementById('mp-name').textContent = v.name;
+  document.getElementById('mp-prompt').value = v.style_prompt || '';
+  document.getElementById('mp-eleven').value = v.elevenlabs_voice_id || '';
   openM('m-prompt');
+  await preencherDonos('mp-dono', 'Catálogo (todos os clientes)');
+  document.getElementById('mp-dono').value = v.client_id || '';
 }
 
 function appendPrompt(text) {
@@ -2012,6 +2019,7 @@ async function savePrompt() {
     await api('PATCH', `/admin/voices/${encodeURIComponent(vid)}`, {
       style_prompt: prompt,
       elevenlabs_voice_id: eleven,
+      client_id: document.getElementById('mp-dono').value || null,
     });
     closeM('m-prompt');
     toast('Voz salva', 'ok');

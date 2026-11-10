@@ -203,3 +203,14 @@ def test_voz_de_outro_cliente_nao_e_visivel() -> None:
     assert not privada.visivel_para(outro)
     assert privada.visivel_para(outro, admin=True)
     assert not inativa.visivel_para(outro, admin=True)
+
+
+def test_patch_de_voz_distingue_dono_ausente_de_dono_nulo() -> None:
+    import uuid
+
+    from kvoice.api.schemas import VoicePatch
+
+    assert "client_id" not in VoicePatch().model_fields_set
+    assert "client_id" in VoicePatch.model_validate({"client_id": None}).model_fields_set
+    dono = uuid.uuid4()
+    assert VoicePatch.model_validate({"client_id": str(dono)}).client_id == dono
