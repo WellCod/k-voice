@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import select
 
+from kvoice.cache_consultas import em_cache
 from kvoice.db.models import RoutingMode, RoutingRule
 from kvoice.db.models import Voice as DbVoice
 from kvoice.db.session import session_factory
@@ -37,6 +38,7 @@ class RoutingDecision:
         )
 
 
+@em_cache
 async def _buscar_regra(client_id: uuid.UUID) -> RoutingRule | None:
     async with session_factory()() as db:
         result = await db.execute(

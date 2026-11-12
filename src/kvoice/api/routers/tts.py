@@ -35,6 +35,7 @@ from kvoice.api.sintese import (
 from kvoice.api.ws_proto import CancelMsg, EndMsg, StartMsg, TextMsg, parse_client_msg
 from kvoice.audio import encode as encode_audio
 from kvoice.audio import pcm_duration_ms
+from kvoice.cache_consultas import em_cache
 from kvoice.db.models import ApiToken, BatchJob, BatchStatus, Client
 from kvoice.db.models import Voice as DbVoice
 from kvoice.db.session import session_factory
@@ -63,6 +64,7 @@ async def _autenticar_ws(token: str) -> tuple[Client, ApiToken] | None:
     return await autenticar_token(token)
 
 
+@em_cache
 async def _buscar_voz(voice_id: str) -> DbVoice | None:
     async with session_factory()() as db:
         return await db.get(DbVoice, voice_id)

@@ -8,6 +8,8 @@ vale a pena antes de escrever o cache.
 Cria um cliente, um token, uma voz e uma entrada de dicionário temporários e apaga
 tudo no fim.
 
+Mede também a sequência com o cache de consultas ligado (`sequencia_com_cache`).
+
 Uso:
   uv run python -m bench.consultas_ws --n 300
 """
@@ -74,7 +76,11 @@ def _init_sem_pre_ping(url: str) -> None:
 
 
 async def _rodar(n: int, pre_ping: bool) -> dict[str, Any]:
-    url = get_settings().database_url
+    settings = get_settings()
+    url = settings.database_url
+    # As etapas medem o banco; o cache de consultas só entra na última variante.
+    ttl_original = settings.query_cache_ttl_s
+    settings.query_cache_ttl_s = 0
     if pre_ping:
         init_db(url)  # igual ao servidor
     else:
@@ -123,7 +129,10 @@ async def _rodar(n: int, pre_ping: bool) -> dict[str, Any]:
             "sequencia_paralela": _sequencia_paralela,
         }
         resultado = {nome: _resumo(await _medir(n, fn)) for nome, fn in etapas.items()}
+        settings.query_cache_ttl_s = 30.0
+        resultado["sequencia_com_cache"] = _resumo(await _medir(n, _sequencia))
     finally:
+        settings.query_cache_ttl_s = ttl_original
         async with session_factory()() as db:
             await db.execute(
                 delete(PronunciationEntry).where(PronunciationEntry.client_id == cliente_id)
