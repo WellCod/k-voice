@@ -1062,7 +1062,22 @@ _VOGAIS_UPPER = frozenset("AEIOUÁÉÍÓÚÂÊÎÔÛÃÕ")
 
 
 def _acronimo(m: re.Match[str]) -> str:
-    palavra = m.group(0)
+    return _ler_sigla(m.group(0))
+
+
+# Sigla no plural ("CPFs", "ONGs", "PDFs"): lê a sigla como no singular e põe o "s" no
+# fim ("cê pê efes"). Sem isto o "s" minúsculo impedia as regras de sigla.
+_RE_SIGLA_PLURAL = re.compile(r"\b([A-Z]{2,20})s\b")
+
+
+def _sigla_plural(m: re.Match[str]) -> str:
+    sigla = m.group(1)
+    forma = _PALAVRAS_NATIVAS.get(sigla) or _ler_sigla(sigla)
+    # "pix" e formas já terminadas em s ficam iguais no plural.
+    return forma if forma.endswith(("s", "x")) else forma + "s"
+
+
+def _ler_sigla(palavra: str) -> str:
     # Qualquer vogal → palavra em caixa alta (ênfase), não sigla → minúscula.
     # Siglas com vogal que devem ser soletradas (TED, SUS, CDI…) já foram tratadas
     # por _PALAVRAS_NATIVAS antes desta etapa.
@@ -1118,6 +1133,7 @@ def normalize(text: str, dict_: dict[str, str] | None = None) -> str:
     text = _RE_DECIMAL.sub(_decimal, text)
     text = _RE_MILHAR.sub(_milhar, text)
     text = _RE_ORDINAL.sub(_ordinal, text)
+    text = _RE_SIGLA_PLURAL.sub(_sigla_plural, text)
     for padrao, forma in _RE_PALAVRAS_NATIVAS:
         text = padrao.sub(forma, text)
     for pat, rep in _ANGLICISMOS:

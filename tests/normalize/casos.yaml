@@ -726,3 +726,29 @@ casos:
   - id: dic_documentos_carro
     entrada: "O DPVAT e o CRLV estão pagos."
     esperado: "O dê pê vê á tê e o cê erre ele vê estão pagos."
+
+  # Siglas no plural
+
+  - id: plural_documentos
+    entrada: "Envie os CPFs e CNPJs."
+    esperado: "Envie os cê pê efes e cê ene pê jotas."
+
+  - id: plural_ong_e_pdf
+    entrada: "As ONGs e os PDFs."
+    esperado: "As ongs e os pê dê efes."
+
+  - id: plural_ted_e_pix
+    entrada: "Dois TEDs e três PIXs."
+    esperado: "Dois tê ê dês e três pix."
+
+  - id: plural_api_url
+    entrada: "As APIs e URLs."
+    esperado: "As a pê is e u erre eles."
+
+  - id: plural_documentos_pessoais
+    entrada: "Dois RGs e as CNHs"
+    esperado: "Dois erre gês e as cê ene agás"
+
+  - id: plural_universidade
+    entrada: "UFRJs"
+    esperado: "u efe erre jotas"
