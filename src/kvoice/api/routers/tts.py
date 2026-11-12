@@ -194,10 +194,47 @@ async def ws_stream(websocket: WebSocket, token: str = Query(...)) -> None:
         streams_active.dec()
 
 
-async def _proximo_start(websocket: WebSocket, timeout: float | None) -> StartMsg | None:
+class _Leitor:
+    """Lê o socket de uma conexão sem perder mensagem quando quem lê é cancelado.
+
+    A leitura em andamento é uma tarefa própria, aguardada com `shield`: se a fala acaba
+    e a tarefa que lia é cancelada logo depois de a mensagem chegar (o "start" da
+    próxima fala, por exemplo), a mensagem fica guardada e sai na próxima leitura.
+    """
+
+    def __init__(self, websocket: WebSocket) -> None:
+        self._websocket = websocket
+        self._pendente: asyncio.Task[str] | None = None
+
+    async def receber(self, timeout: float | None = None) -> str:
+        if self._pendente is None:
+            self._pendente = asyncio.ensure_future(self._websocket.receive_text())
+        tarefa = self._pendente
+        try:
+            raw = await asyncio.wait_for(asyncio.shield(tarefa), timeout)
+        except asyncio.CancelledError:
+            # Quem lia foi cancelado: a leitura fica guardada mesmo se já terminou, senão
+            # a mensagem que acabou de chegar se perde.
+            raise
+        except BaseException:
+            if tarefa.done():
+                self._pendente = None  # a própria leitura falhou (socket fechado)
+            raise
+        self._pendente = None
+        return raw
+
+    def encerrar(self) -> None:
+        if self._pendente is not None:
+            self._pendente.cancel()
+            self._pendente = None
+
+
+async def _proximo_start(
+    leitor: _Leitor, websocket: WebSocket, timeout: float | None
+) -> StartMsg | None:
     """Espera o "start" da próxima fala. None: o cliente fechou, ficou ocioso ou errou."""
     try:
-        raw = await asyncio.wait_for(websocket.receive_text(), timeout)
+        raw = await leitor.receber(timeout)
         msg = parse_client_msg(raw)
     except (WebSocketDisconnect, ValidationError, TimeoutError):
         return None
@@ -220,7 +257,15 @@ async def _executar_stream(
     decisão de motor é refeita a cada fala, porque a fila muda. Mandar "end" fora de uma
     fala, fechar o socket ou ficar ocioso encerra a conexão.
     """
-    start = await _proximo_start(websocket, timeout=None)
+    leitor = _Leitor(websocket)
+    try:
+        await _falas(websocket, client, admin, leitor)
+    finally:
+        leitor.encerrar()
+
+
+async def _falas(websocket: WebSocket, client: Client, admin: bool, leitor: _Leitor) -> None:
+    start = await _proximo_start(leitor, websocket, timeout=None)
     if start is None:
         with contextlib.suppress(Exception):
             await websocket.close()
@@ -247,11 +292,11 @@ async def _executar_stream(
             pron = await load_dict(client.id)
         streams_started.inc()
         continuar, proxima = await _executar_com_engine(
-            websocket, client, start, orm_voice, decision, pron
+            websocket, client, start, orm_voice, decision, pron, leitor
         )
         if not continuar:
             return
-        start = proxima or await _proximo_start(websocket, timeout=_OCIOSO_ENTRE_FALAS_S)
+        start = proxima or await _proximo_start(leitor, websocket, timeout=_OCIOSO_ENTRE_FALAS_S)
 
     with contextlib.suppress(Exception):
         await websocket.close()
@@ -264,6 +309,7 @@ async def _executar_com_engine(
     orm_voice: DbVoice,
     decision: RoutingDecision,
     pron: list[PronEntry],
+    leitor: _Leitor | None = None,
 ) -> tuple[bool, StartMsg | None]:
     """Roda uma fala. Devolve (a conexão segue aberta?, "start" da próxima fala já lido)."""
     engine = decision.engine
@@ -403,8 +449,10 @@ async def _executar_com_engine(
         # áudio do turno ainda está saindo, e precisa parar o motor.
         nonlocal total_chars, proxima_fala
         encerrado = False
+        ler = leitor or _Leitor(websocket)
         try:
-            async for raw in websocket.iter_text():
+            while True:
+                raw = await ler.receber()
                 try:
                     msg = parse_client_msg(raw)
                 except ValidationError:
