@@ -4,8 +4,9 @@ import asyncio
 import json
 import pathlib
 import uuid
+from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
 from sqlalchemy import select
 
 from kvoice.api.auth import gerar_token, hash_token
@@ -26,6 +27,7 @@ from kvoice.api.schemas import (
     VoiceResponse,
 )
 from kvoice.audio import preprocess_ref_audio
+from kvoice.cache_consultas import limpar_cache_de_consultas
 from kvoice.db.models import (
     ApiToken,
     Client,
@@ -43,7 +45,20 @@ _REFS_DIR = pathlib.Path(__file__).parent.parent.parent.parent.parent / "data" /
 
 _MAX_REF_BYTES = 25 * 1024 * 1024
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+
+async def _limpar_cache_em_escrita(request: Request) -> AsyncIterator[None]:
+    # Token revogado, voz, regra ou dicionário mudados valem na hora neste processo.
+    escrita = request.method not in ("GET", "HEAD", "OPTIONS")
+    if escrita:
+        limpar_cache_de_consultas()
+    yield
+    if escrita:
+        limpar_cache_de_consultas()
+
+
+router = APIRouter(
+    prefix="/admin", tags=["admin"], dependencies=[Depends(_limpar_cache_em_escrita)]
+)
 _admin = Depends(_exigir_scope("admin"))
 
 

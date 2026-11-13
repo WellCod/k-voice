@@ -14,6 +14,7 @@ import uuid
 
 from sqlalchemy import or_, select
 
+from kvoice.cache_consultas import em_cache
 from kvoice.db.models import PronunciationEntry
 from kvoice.db.session import session_factory
 
@@ -22,6 +23,7 @@ PronEntry = tuple[str, str, bool]  # (term, expansion, is_regex)
 _log = logging.getLogger(__name__)
 
 
+@em_cache
 async def load_dict(client_id: uuid.UUID) -> list[PronEntry]:
     """Carrega entradas globais + do cliente, com deduplicação para literais."""
     async with session_factory()() as db:

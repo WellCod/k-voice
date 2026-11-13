@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from kvoice.api.auth import hash_token
+from kvoice.cache_consultas import em_cache
 from kvoice.db.models import ApiToken, Client, UsageEvent
 from kvoice.db.session import get_session, session_factory
 
@@ -25,11 +26,15 @@ _log = logging.getLogger(__name__)
 
 
 def _consulta_token(raw: str) -> Select[ApiToken]:
+    return _consulta_token_por_hash(hash_token(raw))
+
+
+def _consulta_token_por_hash(token_hash: str) -> Select[ApiToken]:
     return (
         select(ApiToken)
         .join(Client, ApiToken.client_id == Client.id)
         .where(
-            ApiToken.token_hash == hash_token(raw),
+            ApiToken.token_hash == token_hash,
             ApiToken.is_active.is_(True),
             Client.is_active.is_(True),
         )
@@ -39,8 +44,14 @@ def _consulta_token(raw: str) -> Select[ApiToken]:
 
 async def autenticar_token(raw: str) -> tuple[Client, ApiToken] | None:
     """Valida o token fora de uma dependência do FastAPI (WebSocket, compat, MCP)."""
+    # A chave do cache é o hash: o token em texto não fica guardado na memória.
+    return await _autenticar_por_hash(hash_token(raw))
+
+
+@em_cache
+async def _autenticar_por_hash(token_hash: str) -> tuple[Client, ApiToken] | None:
     async with session_factory()() as db:
-        record = (await db.execute(_consulta_token(raw))).scalar_one_or_none()
+        record = (await db.execute(_consulta_token_por_hash(token_hash))).scalar_one_or_none()
     if record is None:
         return None
     return record.client, record

@@ -33,3 +33,14 @@ uv run python -m bench.consultas_ws --n 300 --sem-pre-ping
 ```
 
 O script cria um cliente, um token, uma voz e uma entrada de dicionário temporários e apaga tudo no fim. O JSON fica em `bench/outputs/consultas_ws/`, fora do git.
+
+## Com o cache de consultas — 2026-11-12
+
+Mesma máquina e versões. Token, voz, regra e dicionário passaram a ficar em memória por `QUERY_CACHE_TTL_S` (30 s); a variante `sequencia_com_cache` mede as quatro com o cache já preenchido, e as demais rodam com o cache desligado para seguirem medindo o banco. Duas rodadas, 300 repetições, em ms:
+
+| Etapa | p50 | p95 | max |
+|---|---|---|---|
+| As quatro em sequência, sem cache | 28–30 | 37–40 | 67–110 |
+| As quatro em sequência, com cache | 0,01 | 0,01 | 0,02–0,05 |
+
+A partir da segunda fala do mesmo cliente dentro da validade, as consultas saem do custo do primeiro áudio. A primeira fala de cada cliente, e a primeira depois de uma escrita no admin, ainda vai ao banco.

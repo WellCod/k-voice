@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     audio_cache_max_chars: int = 200
     audio_cache_ttl_s: int = 86_400
 
+    # Validade do cache de token, voz, regra e dicionário, por processo. 0 desliga.
+    query_cache_ttl_s: float = 30.0
+
     @property
     def sync_database_url(self) -> str:
         url = self.database_url.replace("+asyncpg", "+psycopg2")

@@ -109,6 +109,7 @@ Sobe Postgres, MinIO, a migração e o servidor na porta 8000 com a GPU reservad
 | `QWEN3_SPEAKER` | `vivian` | Speaker padrão das vozes preset |
 | `MCP_ALLOWED_HOSTS` | `[]` | Hosts aceitos em `/mcp`, em JSON; vazio desliga a checagem de Host |
 | `AUDIO_CACHE_MB` / `AUDIO_CACHE_MAX_CHARS` / `AUDIO_CACHE_TTL_S` | `64` / `200` / `86400` | Cache em memória do áudio de frases curtas repetidas, por processo; `0` MB desliga |
+| `QUERY_CACHE_TTL_S` | `30` | Validade do cache de token, voz, regra e dicionário; escrita no admin limpa na hora no mesmo processo; `0` desliga |
 
 ## Desempenho
 
@@ -118,7 +119,7 @@ Sobe Postgres, MinIO, a migração e o servidor na porta 8000 com a GPU reservad
 | Cancelamento | < 50 ms | pendente em GPU; em teste, não espera a geração em curso |
 | RTF sob carga | < 0,5 | pendente |
 | Pronúncia (WER por transcrição) | — | 1,7% nas 67 frases, Qwen3 0.6B em CPU ([resultados](docs/resultados/pronuncia.md)) |
-| Consultas ao banco antes do primeiro áudio | — | 29–30 ms p50, 36–45 ms p95, banco local ([resultados](docs/resultados/consultas-ws.md)) |
+| Consultas ao banco antes do primeiro áudio | — | 28–30 ms p50 sem cache; 0,01 ms com o cache de consultas, banco local ([resultados](docs/resultados/consultas-ws.md)) |
 
 Afirmações de latência e qualidade só valem com medição no repositório (`bench/`), com hardware, versão e data. Números de fabricante ficam em [docs/modelos.md](docs/modelos.md), marcados como tal.
 
