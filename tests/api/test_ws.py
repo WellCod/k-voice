@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import threading
 import time
@@ -829,3 +830,27 @@ def test_ws_conexao_ociosa_depois_do_done_fecha(
         _ate_done(ws)
         with pytest.raises(WebSocketDisconnect):
             ws.receive_json()
+
+
+async def test_leitor_nao_perde_mensagem_quando_quem_le_e_cancelado() -> None:
+    # Reproduz a corrida: a leitura termina e a tarefa que lia é cancelada antes de
+    # retomar. Como num socket real, ler consome a mensagem; ela tem que sair na próxima.
+    from kvoice.api.routers.tts import _Leitor
+
+    fila: asyncio.Queue[str] = asyncio.Queue()
+
+    class _Socket:
+        async def receive_text(self) -> str:
+            return await fila.get()
+
+    leitor = _Leitor(_Socket())  # type: ignore[arg-type]
+    lendo = asyncio.create_task(leitor.receber())
+    await asyncio.sleep(0)  # a leitura começa e fica esperando
+    fila.put_nowait('{"type": "start", "voice_id": "v"}')
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)  # a leitura termina; quem lia ainda não retomou
+    lendo.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await lendo
+    texto = await asyncio.wait_for(leitor.receber(), timeout=1)
+    assert texto == '{"type": "start", "voice_id": "v"}'

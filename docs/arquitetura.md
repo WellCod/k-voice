@@ -65,6 +65,7 @@ class TTSEngine(Protocol):
 ### 4. Plugin LiveKit (`livekit-plugins-kvoice`)
 - Implementa a classe de TTS do LiveKit Agents com streaming (texto incremental de entrada, áudio incremental de saída) e cancelamento.
 - Usa o adaptador de fallback do LiveKit Agents com a ElevenLabs como segunda opção, se existir na versão em uso; senão, implementa o fallback no plugin.
+- Reaproveita a conexão WebSocket entre falas: depois do `done` ela volta para um pool (até 4 ociosas, descartadas com 45 s, antes dos 60 s em que o servidor fecha). Fala cancelada ou com erro fecha a conexão. Conexão do pool que caiu é trocada por uma nova sem virar erro, para o fallback não entrar por isso.
 - Linguagem do plugin = linguagem do agente atual (Python ou Node). Ver [questões abertas](questoes-abertas.md).
 
 ### 5. Armazenamento
