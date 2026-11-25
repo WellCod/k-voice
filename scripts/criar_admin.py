@@ -26,12 +26,12 @@ async def _criar(database_url: str, cliente: str, voz_id: str, speaker: str) -> 
         client = Client(name=cliente)
         db.add(client)
         await db.flush()
-        raw = gerar_token()
+        token_em_texto = gerar_token()
         db.add(
             ApiToken(
                 client_id=client.id,
                 name="admin",
-                token_hash=hash_token(raw),
+                token_hash=hash_token(token_em_texto),
                 scopes="admin",
             )
         )
@@ -46,15 +46,15 @@ async def _criar(database_url: str, cliente: str, voz_id: str, speaker: str) -> 
                 )
             )
         await db.commit()
-    return raw
+    return token_em_texto
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--cliente", default="admin")
-    p.add_argument("--voz", default="v_vivian", help="id da voz preset criada se não existir")
-    p.add_argument("--speaker", default="vivian", help="speaker do Qwen3 CustomVoice")
-    args = p.parse_args()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--cliente", default="admin")
+    parser.add_argument("--voz", default="v_vivian", help="id da voz preset criada se não existir")
+    parser.add_argument("--speaker", default="vivian", help="speaker do Qwen3 CustomVoice")
+    args = parser.parse_args()
     url = get_settings().database_url
     token = asyncio.run(_criar(url, args.cliente, args.voz, args.speaker))
     print(f"token de admin (guarde agora, não é exibido de novo):\n{token}")

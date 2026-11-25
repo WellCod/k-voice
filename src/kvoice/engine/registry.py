@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from kvoice.engine.types import TTSEngine
 
+# Motor único do processo, instalado no startup do app (ou pelos testes).
 _engine: TTSEngine | None = None
 _ADMISSION_MAX_QUEUE = 8
 

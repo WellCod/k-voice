@@ -42,8 +42,8 @@ _EXT: dict[str, str] = {"ogg_opus": "ogg", "mp3_44100": "mp3", "wav_24000": "wav
 # ---------------------------------------------------------------------------
 
 
-async def _validar_token(raw: str) -> tuple[Client, ApiToken] | None:
-    return await autenticar_token(raw)
+async def _validar_token(token_em_texto: str) -> tuple[Client, ApiToken] | None:
+    return await autenticar_token(token_em_texto)
 
 
 async def _buscar_voz(voice_id: str) -> DbVoice | None:
@@ -54,38 +54,40 @@ async def _buscar_voz(voice_id: str) -> DbVoice | None:
 async def _listar_vozes(
     client_id: uuid.UUID, admin: bool, language: str | None = None
 ) -> list[DbVoice]:
+    """Vozes ativas que o cliente enxerga (catálogo e as próprias; admin vê todas)."""
     async with session_factory()() as db:
-        stmt = (
+        consulta = (
             select(DbVoice)
             .where(DbVoice.is_active.is_(True), DbVoice.filtro_visivel(client_id, admin))
             .order_by(DbVoice.name)
         )
         if language is not None:
-            stmt = stmt.where(DbVoice.language == language)
-        result = await db.execute(stmt)
+            consulta = consulta.where(DbVoice.language == language)
+        result = await db.execute(consulta)
         return list(result.scalars().all())
 
 
-def _voice_to_dict(v: DbVoice) -> dict[str, Any]:
+def _voice_to_dict(voz: DbVoice) -> dict[str, Any]:
     return {
-        "id": v.id,
-        "name": v.name,
-        "gender": v.gender,
-        "age_range": v.age_range,
-        "style": v.style,
-        "language": v.language,
-        "origin": str(v.origin),
-        "model_id": v.model_id,
+        "id": voz.id,
+        "name": voz.name,
+        "gender": voz.gender,
+        "age_range": voz.age_range,
+        "style": voz.style,
+        "language": voz.language,
+        "origin": str(voz.origin),
+        "model_id": voz.model_id,
     }
 
 
 async def _auth(ctx: Context, scope: str) -> tuple[Client, ApiToken]:
+    """Autentica pelo `Authorization: Bearer` da requisição HTTP do MCP e exige o escopo."""
     headers = dict(ctx.headers or {})
     authorization = headers.get("authorization", "")
     if not authorization.lower().startswith("bearer "):
         raise MCPError(-32000, "Token ausente")
-    raw = authorization[7:]
-    result = await _validar_token(raw)
+    token_em_texto = authorization[7:]
+    result = await _validar_token(token_em_texto)
     if result is None:
         raise MCPError(-32000, "Token inválido")
     client, token = result
@@ -128,16 +130,16 @@ async def synthesize(
     if orm_voice is None or not orm_voice.visivel_para(client.id, token.has_scope("admin")):
         raise MCPError(-32000, f"Voz {voice_id!r} não encontrada.")
 
-    t0 = time.monotonic()
+    inicio = time.monotonic()
     decision = await decide_engine(client.id, voice_id, orm_voice.elevenlabs_voice_id)
     if decision is None:
         raise MCPError(-32000, "Motor de síntese indisponível.")
 
     voice = decision.voz(orm_voice)
-    pron = await load_dict(client.id)
-    normalized = normalize(apply_dict(text, pron))
+    dicionario = await load_dict(client.id)
+    texto_normalizado = normalize(apply_dict(text, dicionario))
     audio = await sintetizar_em_partes(
-        decision.engine, normalized, voice, SynthOptions(format=format)
+        decision.engine, texto_normalizado, voice, SynthOptions(format=format)
     )
 
     encoded, content_type = await asyncio.to_thread(
@@ -153,15 +155,15 @@ async def synthesize(
         characters=len(text),
         audio_ms=duration_ms,
         ttfa_ms=audio.ttfa_ms,
-        total_ms=(time.monotonic() - t0) * 1000,
+        total_ms=(time.monotonic() - inicio) * 1000,
         fallback=decision.is_fallback,
         fallback_reason=decision.fallback_reason,
     )
 
-    key = f"outputs/{request_id}.{_EXT[format]}"
+    chave_objeto = f"outputs/{request_id}.{_EXT[format]}"
     storage = get_storage()
-    await storage.upload(key, encoded, content_type)
-    url = await storage.presigned_url(key, url_ttl_s)
+    await storage.upload(chave_objeto, encoded, content_type)
+    url = await storage.presigned_url(chave_objeto, url_ttl_s)
 
     return {
         "request_id": str(request_id),
@@ -181,7 +183,7 @@ async def list_voices(
     """
     client, token = await _auth(ctx, "voices:read")
     vozes = await _listar_vozes(client.id, token.has_scope("admin"), language=language)
-    return [_voice_to_dict(v) for v in vozes]
+    return [_voice_to_dict(voz) for voz in vozes]
 
 
 @mcp.tool(description="Retorna dados de uma voz específica.")

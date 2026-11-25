@@ -28,10 +28,12 @@ from kvoice.referencias import arquivo_decifrado
 _SAMPLE_RATE = 24_000
 _CHUNK_SAMPLES = 4_800  # 200 ms a 24 kHz
 
+# Cada item do gerador do pacote: (forma de onda, taxa de amostragem, tempos internos).
 _Gerador = Iterator[tuple[np.ndarray, int, dict[str, Any]]]
 
 
 def _carregar(model_id: str, device: str, dtype: str) -> Any:
+    """Carrega o modelo em CUDA e já captura os CUDA graphs; falha se não houver GPU."""
     import torch
     from faster_qwen3_tts import FasterQwen3TTS
 
@@ -86,12 +88,18 @@ class FasterQwen3Engine:
         return cls(model, base_model_id, speaker, device, dtype, chunk_size)
 
     def _speaker_for(self, voice: Voice) -> str:
-        candidate = (voice.model_id or "").lower().replace(" ", "_")
-        return candidate if candidate in _VALID_SPEAKERS else self._speaker
+        """Speaker do model_id da voz, ou o padrão do motor se não for um preset válido."""
+        candidato = (voice.model_id or "").lower().replace(" ", "_")
+        return candidato if candidato in _VALID_SPEAKERS else self._speaker
 
     def _fabrica(
         self, text: str, voice: Voice, opts: SynthOptions
     ) -> tuple[asyncio.Semaphore, Callable[[], _Gerador]]:
+        """Escolhe o modelo da voz e devolve o lock dele e a função que abre o gerador.
+
+        A função é chamada já dentro da thread de inferência: carregar o modelo Base e
+        decifrar a referência não bloqueiam o event loop.
+        """
         language = _resolve_language(voice)
         if voice.ref_audio and voice.ref_text:
             ref_audio, ref_text = voice.ref_audio, voice.ref_text
@@ -100,11 +108,11 @@ class FasterQwen3Engine:
                 if self._base_model is None:
                     self._base_model = _carregar(self._base_model_id, self._device, self._dtype)
                 # O arquivo decifrado vive enquanto o gerador roda; _rodar fecha o gerador.
-                with arquivo_decifrado(ref_audio) as ref:
+                with arquivo_decifrado(ref_audio) as caminho_decifrado:
                     yield from self._base_model.generate_voice_clone_streaming(
                         text=text,
                         language=language,
-                        ref_audio=ref,
+                        ref_audio=caminho_decifrado,
                         ref_text=ref_text,
                         chunk_size=self._chunk_size,
                     )
@@ -120,21 +128,26 @@ class FasterQwen3Engine:
         )
 
         def _preset() -> _Gerador:
-            gen: _Gerador = self._custom_model.generate_custom_voice_streaming(
+            gerador: _Gerador = self._custom_model.generate_custom_voice_streaming(
                 text=text,
                 speaker=speaker,
                 language=language,
                 instruct=instruct,
                 chunk_size=self._chunk_size,
             )
-            return gen
+            return gerador
 
         return self._lock, _preset
 
     async def _gerar(
         self, lock: asyncio.Semaphore, fabrica: Callable[[], _Gerador]
     ) -> AsyncGenerator[bytes, None]:
-        """Roda o gerador síncrono numa thread e repassa cada pedaço de PCM assim que sai."""
+        """Roda o gerador síncrono numa thread e repassa cada pedaço de PCM assim que sai.
+
+        A thread conversa com o event loop por uma fila: PCM, a exceção da geração ou
+        None no fim. Fechar este gerador assíncrono (aclosing no chamador) sinaliza
+        `parar`, e a thread sai no próximo pedaço.
+        """
         self._waiting += 1
         try:
             await lock.acquire()
@@ -152,31 +165,33 @@ class FasterQwen3Engine:
 
         def _rodar() -> None:
             try:
-                gen = fabrica()
+                gerador = fabrica()
                 try:
-                    for audio, sr, _timing in gen:
+                    for forma_de_onda, taxa_amostragem, _tempos in gerador:
                         if parar.is_set():
                             break
-                        if sr != _SAMPLE_RATE:
-                            raise RuntimeError(f"taxa inesperada do modelo: {sr} Hz")
-                        _entregar(_pcm_from_wav(np.asarray(audio)))
+                        if taxa_amostragem != _SAMPLE_RATE:
+                            raise RuntimeError(f"taxa inesperada do modelo: {taxa_amostragem} Hz")
+                        _entregar(_pcm_from_wav(np.asarray(forma_de_onda)))
                 finally:
-                    close = getattr(gen, "close", None)
-                    if close is not None:
-                        close()
+                    # Fechar o gerador interrompe a geração do pacote e, na clonagem, sai
+                    # do `with` de _clone, que apaga a referência decifrada.
+                    fechar = getattr(gerador, "close", None)
+                    if fechar is not None:
+                        fechar()
                 _entregar(None)
             except BaseException as exc:
                 _entregar(exc)
 
-        fut = loop.run_in_executor(None, _rodar)
+        futuro = loop.run_in_executor(None, _rodar)
 
         # O cancelamento só para a geração no próximo pedaço; o lock fica preso até a
         # thread sair, senão duas gerações rodariam no mesmo modelo.
-        def _liberar(_f: asyncio.Future[None]) -> None:
+        def _liberar(_concluido: asyncio.Future[None]) -> None:
             self._active -= 1
             lock.release()
 
-        fut.add_done_callback(_liberar)
+        futuro.add_done_callback(_liberar)
         try:
             while True:
                 item = await fila.get()
@@ -189,14 +204,14 @@ class FasterQwen3Engine:
             parar.set()
 
     async def synthesize(self, text: str, voice: Voice, opts: SynthOptions) -> Audio:
-        t0 = time.monotonic()
+        inicio = time.monotonic()
         ttfa_ms = 0.0
         partes: list[bytes] = []
         lock, fabrica = self._fabrica(text, voice, opts)
-        async with contextlib.aclosing(self._gerar(lock, fabrica)) as gen:
-            async for pcm in gen:
+        async with contextlib.aclosing(self._gerar(lock, fabrica)) as pedacos:
+            async for pcm in pedacos:
                 if not partes:
-                    ttfa_ms = (time.monotonic() - t0) * 1000
+                    ttfa_ms = (time.monotonic() - inicio) * 1000
                 partes.append(pcm)
         data = b"".join(partes)
         return Audio(
@@ -220,8 +235,10 @@ class FasterQwen3Engine:
         async for frase in text:
             if frase.strip():
                 lock, fabrica = self._fabrica(frase, voice, opts)
-                async with contextlib.aclosing(self._gerar(lock, fabrica)) as gen:
-                    async for pcm in gen:
+                # aclosing fecha o gerador na hora se o consumidor parar (barge-in): o
+                # `finally` de _gerar sinaliza a thread em vez de esperar o coletor de lixo.
+                async with contextlib.aclosing(self._gerar(lock, fabrica)) as pedacos:
+                    async for pcm in pedacos:
                         for chunk in fatiar_pcm(pcm, _SAMPLE_RATE, _CHUNK_SAMPLES):
                             yield chunk
             # Marca o fim da frase sem segurar áudio: chunk vazio só para o "flushed".

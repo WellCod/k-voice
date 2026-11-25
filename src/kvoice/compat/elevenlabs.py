@@ -33,6 +33,11 @@ router = APIRouter(prefix="/v1", tags=["compat-elevenlabs"])
 
 
 def _map_format(output_format: str) -> str:
+    """Traduz o `output_format` da ElevenLabs para o formato mais próximo do k-voice.
+
+    Só a família conta (taxa e bitrate pedidos são ignorados); desconhecido vira MP3,
+    o padrão da ElevenLabs.
+    """
     if output_format.startswith("mp3_"):
         return "mp3_44100"
     if output_format.startswith("pcm_") or output_format.startswith("wav_"):
@@ -62,14 +67,18 @@ async def _buscar_voz(voice_id: str) -> DbVoice | None:
 
 
 async def _autenticar(xi_api_key: str | None, authorization: str | None) -> tuple[Client, ApiToken]:
-    raw: str | None = None
+    """Aceita a chave em `xi-api-key` (como na ElevenLabs) ou em `Authorization: Bearer`.
+
+    `xi-api-key` tem prioridade. Exige o escopo `tts:batch`; devolve (cliente, token).
+    """
+    token_em_texto: str | None = None
     if xi_api_key:
-        raw = xi_api_key
+        token_em_texto = xi_api_key
     elif authorization and authorization.lower().startswith("bearer "):
-        raw = authorization[7:]
-    if not raw:
+        token_em_texto = authorization[7:]
+    if not token_em_texto:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Chave ausente")
-    auth = await autenticar_token(raw)
+    auth = await autenticar_token(token_em_texto)
     if auth is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Chave inválida")
     client, token = auth
@@ -91,13 +100,13 @@ async def text_to_speech(
     """POST /v1/text-to-speech/{voice_id} compatível com a ElevenLabs."""
     client, token = await _autenticar(xi_api_key, authorization)
 
-    our_format = _map_format(output_format)
+    formato = _map_format(output_format)
 
     orm_voice = await _buscar_voz(voice_id)
     if orm_voice is None or not orm_voice.visivel_para(client.id, token.has_scope("admin")):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voz não encontrada")
 
-    t0 = time.monotonic()
+    inicio = time.monotonic()
     decision = await decide_engine(client.id, voice_id, orm_voice.elevenlabs_voice_id)
     if decision is None:
         raise HTTPException(
@@ -109,13 +118,13 @@ async def text_to_speech(
         speed = body.voice_settings.speed
 
     voice = decision.voz(orm_voice)
-    opts = SynthOptions(format=our_format, speed=speed)
-    pron = await load_dict(client.id)
+    opcoes = SynthOptions(format=formato, speed=speed)
+    dicionario = await load_dict(client.id)
     audio = await sintetizar_em_partes(
-        decision.engine, normalize(apply_dict(body.text, pron)), voice, opts
+        decision.engine, normalize(apply_dict(body.text, dicionario)), voice, opcoes
     )
     encoded, content_type = await asyncio.to_thread(
-        encode_audio, audio.data, audio.sample_rate, our_format
+        encode_audio, audio.data, audio.sample_rate, formato
     )
     await gravar_uso(
         request_id=uuid.uuid4(),
@@ -125,7 +134,7 @@ async def text_to_speech(
         characters=len(body.text),
         audio_ms=pcm_duration_ms(audio.data, audio.sample_rate),
         ttfa_ms=audio.ttfa_ms,
-        total_ms=(time.monotonic() - t0) * 1000,
+        total_ms=(time.monotonic() - inicio) * 1000,
         fallback=decision.is_fallback,
         fallback_reason=decision.fallback_reason,
     )

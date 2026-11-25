@@ -60,9 +60,10 @@ def decifrar(dados: bytes) -> bytes:
 
 
 def _dir_temp() -> Path:
-    d = Path(tempfile.gettempdir()) / "kvoice-refs"
-    d.mkdir(mode=0o700, exist_ok=True)
-    return d
+    """Diretório temporário das referências decifradas, acessível só pelo dono."""
+    diretorio = Path(tempfile.gettempdir()) / "kvoice-refs"
+    diretorio.mkdir(mode=0o700, exist_ok=True)
+    return diretorio
 
 
 @contextmanager
@@ -71,16 +72,19 @@ def arquivo_decifrado(caminho: str) -> Iterator[str]:
 
     O nome é fixo por referência: o faster-qwen3-tts guarda o prompt da voz em memória
     indexado pelo caminho e só relê o arquivo quando muda de voz. A extensão original
-    é mantida porque referências antigas são OGG.
+    é mantida porque referências antigas são OGG. O nome fixo não colide entre duas
+    gerações porque os motores serializam a clonagem no lock do modelo Base.
     """
     sufixo = Path(caminho).suffix or ".wav"
     destino = _dir_temp() / (hashlib.sha256(caminho.encode()).hexdigest()[:32] + sufixo)
     dados = decifrar(Path(caminho).read_bytes())
-    fd = os.open(destino, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    # os.open com 0o600 cria o arquivo já restrito ao dono; open() comum criaria com a
+    # umask e só depois daria para restringir, deixando o áudio legível nesse intervalo.
+    descritor = os.open(destino, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     try:
-        os.write(fd, dados)
+        os.write(descritor, dados)
     finally:
-        os.close(fd)
+        os.close(descritor)
     try:
         yield str(destino)
     finally:

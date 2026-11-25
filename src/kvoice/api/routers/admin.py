@@ -47,7 +47,12 @@ _MAX_REF_BYTES = 25 * 1024 * 1024
 
 
 async def _limpar_cache_em_escrita(request: Request) -> AsyncIterator[None]:
-    # Token revogado, voz, regra ou dicionário mudados valem na hora neste processo.
+    """Dependência do roteador: limpa o cache de consultas antes e depois de cada escrita.
+
+    Token revogado, voz, regra ou dicionário mudados valem na hora neste processo. A
+    limpeza depois da rota cobre a leitura concorrente que repovoou o cache com o valor
+    antigo antes do commit. Nas outras réplicas vale a validade (`QUERY_CACHE_TTL_S`).
+    """
     escrita = request.method not in ("GET", "HEAD", "OPTIONS")
     if escrita:
         limpar_cache_de_consultas()
@@ -89,20 +94,22 @@ async def listar_clientes(db: DbSession) -> list[Client]:
     dependencies=[_admin],
 )
 async def criar_token(client_id: uuid.UUID, body: TokenCreate, db: DbSession) -> TokenCreated:
+    """Gera um token para o cliente; o texto do token só aparece nesta resposta."""
     client = await db.get(Client, client_id)
     if client is None or not client.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente não encontrado")
-    raw = gerar_token()
+    token_em_texto = gerar_token()
+    # No banco fica só o hash (ver CLAUDE.md, regras críticas).
     token = ApiToken(
         client_id=client_id,
         name=body.name,
-        token_hash=hash_token(raw),
+        token_hash=hash_token(token_em_texto),
         scopes=",".join(body.scopes),
     )
     db.add(token)
     await db.commit()
     await db.refresh(token)
-    return TokenCreated(id=token.id, name=token.name, token=raw, scopes=body.scopes)
+    return TokenCreated(id=token.id, name=token.name, token=token_em_texto, scopes=body.scopes)
 
 
 @router.get(
@@ -123,6 +130,7 @@ async def listar_tokens(client_id: uuid.UUID, db: DbSession) -> list[ApiToken]:
     dependencies=[_admin],
 )
 async def revogar_token(client_id: uuid.UUID, token_id: uuid.UUID, db: DbSession) -> None:
+    """Desativa o token em vez de apagar; a autenticação passa a recusá-lo."""
     token = await db.get(ApiToken, token_id)
     if token is None or token.client_id != client_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token não encontrado")
@@ -137,8 +145,9 @@ async def revogar_token(client_id: uuid.UUID, token_id: uuid.UUID, db: DbSession
     dependencies=[_admin],
 )
 async def criar_voz(body: VoiceCreate, db: DbSession) -> Voice:
-    existing = await db.get(Voice, body.id)
-    if existing is not None:
+    """Cadastra a voz; com `client_id` ela fica privada desse cliente, sem ele é catálogo."""
+    existente = await db.get(Voice, body.id)
+    if existente is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="ID de voz já existe")
     if body.client_id is not None and await db.get(Client, body.client_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente não encontrado")
@@ -167,6 +176,12 @@ async def criar_voz(body: VoiceCreate, db: DbSession) -> Voice:
     dependencies=[_admin],
 )
 async def atualizar_voz(voice_id: str, body: VoicePatch, db: DbSession) -> Voice:
+    """Atualiza só os campos enviados.
+
+    Nos campos de texto, ausente (None) mantém o valor e string vazia apaga. Em
+    `client_id`, null é valor válido (volta ao catálogo), então o que distingue "não
+    mexer" de "remover o dono" é o campo ter vindo no corpo.
+    """
     voice = await db.get(Voice, voice_id)
     if voice is None or not voice.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voz não encontrada")
@@ -224,13 +239,15 @@ async def upload_audio_referencia(
 
     # Determina extensão real a partir do nome do arquivo enviado
     original_name = audio.filename or "ref.webm"
-    ext = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else "webm"
-    if ext not in {"wav", "mp3", "ogg", "webm", "m4a", "flac"}:
-        ext = "webm"
+    extensao = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else "webm"
+    if extensao not in {"wav", "mp3", "ogg", "webm", "m4a", "flac"}:
+        extensao = "webm"
 
     # Normaliza loudness, remove silêncio e converte para WAV 16 kHz mono
     try:
-        audio_bytes, duration_s = await asyncio.to_thread(preprocess_ref_audio, audio_bytes, ext)
+        audio_bytes, duration_s = await asyncio.to_thread(
+            preprocess_ref_audio, audio_bytes, extensao
+        )
     except RuntimeError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -244,9 +261,8 @@ async def upload_audio_referencia(
         )
 
     # WAV normalizado e cifrado em disco local (produção: S3 em kvoice.storage)
-    ext = "wav"
     _REFS_DIR.mkdir(parents=True, exist_ok=True)
-    file_key = f"{voice_id}/{uuid.uuid4()}.{ext}"
+    file_key = f"{voice_id}/{uuid.uuid4()}.wav"
     local_path = _REFS_DIR / file_key
     local_path.parent.mkdir(parents=True, exist_ok=True)
     local_path.write_bytes(cifrar(audio_bytes))
@@ -276,6 +292,7 @@ async def upload_audio_referencia(
 async def upsert_regra_roteamento(
     client_id: uuid.UUID, body: RoutingRuleCreate, db: DbSession
 ) -> RoutingRule:
+    """Cria ou substitui a regra ativa do cliente (no máximo uma ativa por cliente)."""
     client = await db.get(Client, client_id)
     if client is None or not client.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente não encontrado")
@@ -287,20 +304,21 @@ async def upsert_regra_roteamento(
     )
     rule = result.scalar_one_or_none()
 
-    mapping_str = json.dumps(body.voice_mapping) if body.voice_mapping is not None else None
+    # O mapa de vozes k-voice -> ElevenLabs é guardado como JSON em texto.
+    mapa_json = json.dumps(body.voice_mapping) if body.voice_mapping is not None else None
 
     if rule is None:
         rule = RoutingRule(
             client_id=client_id,
             mode=body.mode,
             kvoice_pct=body.kvoice_pct,
-            voice_mapping=mapping_str,
+            voice_mapping=mapa_json,
         )
         db.add(rule)
     else:
         rule.mode = body.mode
         rule.kvoice_pct = body.kvoice_pct
-        rule.voice_mapping = mapping_str
+        rule.voice_mapping = mapa_json
 
     await db.commit()
     await db.refresh(rule)
@@ -332,6 +350,7 @@ async def buscar_regra_roteamento(client_id: uuid.UUID, db: DbSession) -> Routin
     dependencies=[_admin],
 )
 async def remover_regra_roteamento(client_id: uuid.UUID, db: DbSession) -> None:
+    """Desativa a regra; o cliente volta ao padrão (só k-voice)."""
     result = await db.execute(
         select(RoutingRule)
         .where(RoutingRule.client_id == client_id, RoutingRule.is_active.is_(True))
@@ -400,6 +419,7 @@ async def listar_entradas_pronuncia(
 async def criar_entrada_pronuncia_global(
     body: PronunciationEntryCreate, db: DbSession
 ) -> PronunciationEntry:
+    """Entrada sem cliente: vale para todos; a literal do cliente com o mesmo termo vence."""
     entry = PronunciationEntry(
         client_id=None,
         term=body.term,

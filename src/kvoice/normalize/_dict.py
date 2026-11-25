@@ -41,13 +41,15 @@ async def load_dict(client_id: uuid.UUID) -> list[PronEntry]:
 
     plain: dict[str, str] = {}
     regex: list[PronEntry] = []
-    for e in entries:
-        if e.is_regex:
-            regex.append((e.term, e.expansion, True))
+    # A consulta traz as globais primeiro (nulls_first): a entrada do cliente chega
+    # depois e sobrepõe, em `plain`, a global do mesmo termo.
+    for entrada in entries:
+        if entrada.is_regex:
+            regex.append((entrada.term, entrada.expansion, True))
         else:
-            plain[e.term] = e.expansion  # cliente sobrepõe global
+            plain[entrada.term] = entrada.expansion
 
-    return [(t, exp, False) for t, exp in plain.items()] + regex
+    return [(termo, expansao, False) for termo, expansao in plain.items()] + regex
 
 
 @functools.lru_cache(maxsize=4096)

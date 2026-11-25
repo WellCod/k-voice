@@ -19,9 +19,10 @@ _PADRAO = Path(__file__).parent.parent / "data" / "references"
 
 
 def cifrar_pasta(pasta: Path) -> tuple[int, int]:
+    """Cifra os arquivos em claro da pasta. Devolve (cifrados agora, já estavam cifrados)."""
     exigir_chave()
     cifrados = pulados = 0
-    for arquivo in sorted(p for p in pasta.rglob("*") if p.is_file()):
+    for arquivo in sorted(caminho for caminho in pasta.rglob("*") if caminho.is_file()):
         dados = arquivo.read_bytes()
         if esta_cifrado(dados):
             pulados += 1
@@ -32,9 +33,9 @@ def cifrar_pasta(pasta: Path) -> tuple[int, int]:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--dir", default=_PADRAO, type=Path)
-    args = p.parse_args()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dir", default=_PADRAO, type=Path)
+    args = parser.parse_args()
     cifrados, pulados = cifrar_pasta(args.dir)
     print(f"cifrados: {cifrados}, já cifrados: {pulados}")
 

@@ -48,8 +48,9 @@ class Settings(BaseSettings):
 
     @property
     def sync_database_url(self) -> str:
+        """URL do banco com driver síncrono (psycopg2), para quem não roda em asyncio."""
         url = self.database_url.replace("+asyncpg", "+psycopg2")
-        # strip asyncpg-specific query params unsupported by psycopg2
+        # Parâmetros de query próprios do asyncpg não são aceitos pelo psycopg2.
         if "?" in url:
             url = url.split("?")[0]
         return url

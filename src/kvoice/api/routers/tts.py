@@ -55,6 +55,7 @@ _log = logging.getLogger(__name__)
 _tarefas_uso: set[asyncio.Task[None]] = set()
 
 _EXT: dict[str, str] = {"ogg_opus": "ogg", "mp3_44100": "mp3", "wav_24000": "wav"}
+# Marcador na fila de texto: o cliente pediu flush depois do texto anterior.
 _FLUSH = object()
 # Depois do "done", a conexão espera o próximo "start" por este tempo antes de fechar.
 _OCIOSO_ENTRE_FALAS_S = 60.0
@@ -66,12 +67,18 @@ async def _autenticar_ws(token: str) -> tuple[Client, ApiToken] | None:
 
 @em_cache
 async def _buscar_voz(voice_id: str) -> DbVoice | None:
+    """Carrega a voz com sessão própria; o WebSocket não usa a sessão por requisição."""
     async with session_factory()() as db:
         return await db.get(DbVoice, voice_id)
 
 
 @router.post("/v1/tts", response_model=None)
 async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> Response:
+    """Sintetiza o texto inteiro de uma vez.
+
+    Com `delivery="bytes"` devolve o áudio no corpo; senão grava no bucket e devolve uma
+    URL assinada que expira em `url_ttl_s`. Nos dois casos registra o job e o uso.
+    """
     client, token = auth
     if not token.has_scope("tts:batch"):
         raise HTTPException(
@@ -80,10 +87,11 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
         )
 
     orm_voice = await db.get(DbVoice, body.voice_id)
+    # Voz privada de outro cliente responde como inexistente, para não vazar que existe.
     if orm_voice is None or not orm_voice.visivel_para(client.id, token.has_scope("admin")):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voz não encontrada")
 
-    t0 = time.monotonic()
+    inicio = time.monotonic()
     decision = await decide_engine(client.id, body.voice_id, orm_voice.elevenlabs_voice_id)
     if decision is None:
         raise HTTPException(
@@ -92,11 +100,11 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
         )
 
     voice = decision.voz(orm_voice)
-    opts = SynthOptions(format=body.format, style=body.style_prompt or "neutro")
-    pron = await load_dict(client.id)
-    normalized = normalize(apply_dict(body.text, pron))
+    opcoes = SynthOptions(format=body.format, style=body.style_prompt or "neutro")
+    dicionario = await load_dict(client.id)
+    texto_normalizado = normalize(apply_dict(body.text, dicionario))
 
-    audio = await sintetizar_em_partes(decision.engine, normalized, voice, opts)
+    audio = await sintetizar_em_partes(decision.engine, texto_normalizado, voice, opcoes)
 
     encoded, content_type = await asyncio.to_thread(
         encode_audio, audio.data, audio.sample_rate, body.format
@@ -111,7 +119,7 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
         characters=len(body.text),
         audio_ms=duration_ms,
         ttfa_ms=audio.ttfa_ms,
-        total_ms=(time.monotonic() - t0) * 1000,
+        total_ms=(time.monotonic() - inicio) * 1000,
         fallback=decision.is_fallback,
         fallback_reason=decision.fallback_reason,
     )
@@ -138,10 +146,10 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
             },
         )
 
-    key = f"outputs/{request_id}.{_EXT[body.format]}"
+    chave_objeto = f"outputs/{request_id}.{_EXT[body.format]}"
     storage = get_storage()
-    await storage.upload(key, encoded, content_type)
-    url = await storage.presigned_url(key, body.url_ttl_s)
+    await storage.upload(chave_objeto, encoded, content_type)
+    url = await storage.presigned_url(chave_objeto, body.url_ttl_s)
 
     job = BatchJob(
         id=request_id,
@@ -150,7 +158,7 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
         status=BatchStatus.done,
         input_text=body.text,
         format=body.format,
-        output_key=key,
+        output_key=chave_objeto,
         duration_ms=duration_ms,
         completed_at=datetime.now(UTC),
         expires_at=datetime.now(UTC) + timedelta(seconds=body.url_ttl_s),
@@ -170,6 +178,11 @@ async def sintetizar_lote(body: BatchRequest, db: DbSession, auth: AuthDep) -> R
 
 @router.websocket("/v1/tts/stream")
 async def ws_stream(websocket: WebSocket, token: str = Query(...)) -> None:
+    """Streaming de TTS por WebSocket.
+
+    O token vai na query porque o handshake do navegador não aceita cabeçalho. Aceita
+    antes de autenticar para poder mandar o erro em JSON e fechar com código 4001/4003.
+    """
     await websocket.accept()
 
     auth = await _autenticar_ws(token)
@@ -207,11 +220,12 @@ class _Leitor:
         self._pendente: asyncio.Task[str] | None = None
 
     async def receber(self, timeout: float | None = None) -> str:
+        """Devolve a próxima mensagem de texto, retomando a leitura pendente se houver."""
         if self._pendente is None:
             self._pendente = asyncio.ensure_future(self._websocket.receive_text())
         tarefa = self._pendente
         try:
-            raw = await asyncio.wait_for(asyncio.shield(tarefa), timeout)
+            mensagem = await asyncio.wait_for(asyncio.shield(tarefa), timeout)
         except asyncio.CancelledError:
             # Quem lia foi cancelado: a leitura fica guardada mesmo se já terminou, senão
             # a mensagem que acabou de chegar se perde.
@@ -221,7 +235,7 @@ class _Leitor:
                 self._pendente = None  # a própria leitura falhou (socket fechado)
             raise
         self._pendente = None
-        return raw
+        return mensagem
 
     def encerrar(self) -> None:
         if self._pendente is not None:
@@ -234,12 +248,13 @@ async def _proximo_start(
 ) -> StartMsg | None:
     """Espera o "start" da próxima fala. None: o cliente fechou, ficou ocioso ou errou."""
     try:
-        raw = await leitor.receber(timeout)
-        msg = parse_client_msg(raw)
+        mensagem_bruta = await leitor.receber(timeout)
+        msg = parse_client_msg(mensagem_bruta)
     except (WebSocketDisconnect, ValidationError, TimeoutError):
         return None
     if isinstance(msg, StartMsg):
         return msg
+    # "end" fora de uma fala é o jeito educado de encerrar; qualquer outra coisa é erro.
     if not isinstance(msg, EndMsg):
         await websocket.send_json({"type": "error", "code": "protocol"})
     return None
@@ -265,6 +280,11 @@ async def _executar_stream(
 
 
 async def _falas(websocket: WebSocket, client: Client, admin: bool, leitor: _Leitor) -> None:
+    """Laço das falas de uma conexão: valida a voz, decide o motor e roda cada fala.
+
+    A primeira fala espera o "start" sem limite de tempo; as seguintes, no máximo
+    `_OCIOSO_ENTRE_FALAS_S`. Erro de voz ou de capacidade fecha a conexão.
+    """
     start = await _proximo_start(leitor, websocket, timeout=None)
     if start is None:
         with contextlib.suppress(Exception):
@@ -272,7 +292,7 @@ async def _falas(websocket: WebSocket, client: Client, admin: bool, leitor: _Lei
         return
 
     orm_voice: DbVoice | None = None
-    pron: list[PronEntry] | None = None
+    dicionario: list[PronEntry] | None = None
     while start is not None:
         if orm_voice is None or orm_voice.id != start.voice_id:
             orm_voice = await _buscar_voz(start.voice_id)
@@ -287,15 +307,16 @@ async def _falas(websocket: WebSocket, client: Client, admin: bool, leitor: _Lei
             await websocket.close(code=1013)
             return
 
-        if pron is None:
+        if dicionario is None:
             # Uma consulta por conexão, fora do caminho crítico do áudio.
-            pron = await load_dict(client.id)
+            dicionario = await load_dict(client.id)
         streams_started.inc()
         continuar, proxima = await _executar_com_engine(
-            websocket, client, start, orm_voice, decision, pron, leitor
+            websocket, client, start, orm_voice, decision, dicionario, leitor
         )
         if not continuar:
             return
+        # O "start" seguinte pode ter chegado durante a fala; senão, espera por ele.
         start = proxima or await _proximo_start(leitor, websocket, timeout=_OCIOSO_ENTRE_FALAS_S)
 
     with contextlib.suppress(Exception):
@@ -308,20 +329,33 @@ async def _executar_com_engine(
     start: StartMsg,
     orm_voice: DbVoice,
     decision: RoutingDecision,
-    pron: list[PronEntry],
+    dicionario: list[PronEntry],
     leitor: _Leitor | None = None,
 ) -> tuple[bool, StartMsg | None]:
-    """Roda uma fala. Devolve (a conexão segue aberta?, "start" da próxima fala já lido)."""
+    """Roda uma fala. Devolve (a conexão segue aberta?, "start" da próxima fala já lido).
+
+    Três tarefas cooperam por filas:
+    - leitura (`_reader`): recebe "text", "flush", "end" e "cancel" e alimenta a fila de
+      texto;
+    - áudio (`_send_audio`): consome o texto normalizado, chama o motor em streaming e
+      põe os chunks na fila de envio;
+    - envio (`_sender`): única tarefa que escreve no socket, na ordem da fila.
+
+    A fala termina quando o motor esgota o texto (depois do "end") ou quando a leitura
+    para (cancelamento, desconexão ou excesso de texto).
+    """
     engine = decision.engine
     voice = decision.voz(orm_voice)
-    opts = SynthOptions(
+    opcoes = SynthOptions(
         speed=start.options.speed,
         style=start.options.style,
         format=start.format,
     )
     request_id = uuid.uuid4()
 
+    # Fila de envio: bytes de áudio, dicts de controle e None para encerrar o envio.
     send_queue: asyncio.Queue[bytes | dict[str, object] | None] = asyncio.Queue()
+    # Fila de texto: pedaços do cliente, _FLUSH e None para fim do texto.
     text_queue: asyncio.Queue[str | object | None] = asyncio.Queue()
     cancelled = asyncio.Event()
 
@@ -334,7 +368,7 @@ async def _executar_com_engine(
         }
     )
 
-    t0 = time.monotonic()
+    inicio = time.monotonic()
     ttfa_ms = 0.0
     total_audio_ms = 0.0
     total_chars = 0
@@ -343,6 +377,7 @@ async def _executar_com_engine(
     # chunk quantos itens de texto terminaram de soar (AudioChunk.textos_concluidos).
     entregues = 0
     concluidos = 0
+    # Para cada flush pendente, quantos itens de texto precisam ter soado antes do aviso.
     flushes: deque[int] = deque()
 
     async def _liberar_flushes() -> None:
@@ -351,56 +386,64 @@ async def _executar_com_engine(
             await send_queue.put({"type": "flushed"})
 
     async def _text_iter() -> AsyncIterator[str]:
+        """Entrega ao motor o texto normalizado, frase a frase.
+
+        Guarda em `pendente` o que ainda não fecha frase. Flush e fim do texto despejam
+        o pendente mesmo sem pontuação. Cada item entregue conta em `entregues`.
+        """
         nonlocal entregues
-        pending = ""
+        pendente = ""
         while True:
             item = await text_queue.get()
             if item is None:
-                if pending and not cancelled.is_set():
-                    normed = normalize(apply_dict(pending, pron))
-                    if normed:
+                if pendente and not cancelled.is_set():
+                    normalizado = normalize(apply_dict(pendente, dicionario))
+                    if normalizado:
                         entregues += 1
-                        yield normed
+                        yield normalizado
                 return
             if item is _FLUSH:
-                if pending:
-                    normed = normalize(apply_dict(pending, pron))
-                    pending = ""
-                    if normed:
+                if pendente:
+                    normalizado = normalize(apply_dict(pendente, dicionario))
+                    pendente = ""
+                    if normalizado:
                         entregues += 1
-                        yield normed
+                        yield normalizado
                 flushes.append(entregues)
                 await _liberar_flushes()
                 continue
             assert isinstance(item, str)
-            ready, pending = normalize_incremental(
-                pending + item, pre=lambda t: apply_dict(t, pron)
+            pronto, pendente = normalize_incremental(
+                pendente + item, pre=lambda trecho: apply_dict(trecho, dicionario)
             )
-            if ready:
+            if pronto:
                 entregues += 1
-                yield ready
+                yield pronto
             # Texto sem fim de frase se acumularia sem limite: cada pedaço reprocessaria
             # tudo (custo quadrático no loop) e a "frase" final seguraria o lock do motor.
-            while len(pending) > MAX_CARACTERES_SEGMENTO:
-                cabeca, pending = cortar_em_pausa(pending)
-                normed = normalize(apply_dict(cabeca, pron))
-                if normed:
+            while len(pendente) > MAX_CARACTERES_SEGMENTO:
+                cabeca, pendente = cortar_em_pausa(pendente)
+                normalizado = normalize(apply_dict(cabeca, dicionario))
+                if normalizado:
                     entregues += 1
-                    yield normed
+                    yield normalizado
 
     falhou = False
 
     async def _send_audio() -> None:
+        """Gera o áudio e enfileira os chunks; mede o TTFA e libera os flushes cumpridos."""
         nonlocal ttfa_ms, total_audio_ms, first_chunk, concluidos, falhou
         try:
             # aclosing: ao sair do loop o motor para a geração na hora, não só no GC.
-            async with contextlib.aclosing(await engine.stream(_text_iter(), voice, opts)) as gen:
-                async for chunk in gen:
+            async with contextlib.aclosing(
+                await engine.stream(_text_iter(), voice, opcoes)
+            ) as geracao:
+                async for chunk in geracao:
                     if cancelled.is_set():
                         break
                     if chunk.data:
                         if first_chunk:
-                            ttfa_ms = (time.monotonic() - t0) * 1000
+                            ttfa_ms = (time.monotonic() - inicio) * 1000
                             first_chunk = False
                         await send_queue.put(chunk.data)
                         total_audio_ms += chunk.duration_ms
@@ -421,12 +464,15 @@ async def _executar_com_engine(
     proxima_fala: StartMsg | None = None
 
     def _interromper() -> None:
+        # Marca o cancelamento e solta o _text_iter que pode estar esperando texto.
         nonlocal cancelled_by_client
         cancelled.set()
         cancelled_by_client = True
         text_queue.put_nowait(None)
 
     async def _sender() -> None:
+        # Depois do cancelamento, descarta o áudio que ainda estava na fila, mas deixa
+        # passar as mensagens de controle (erro, por exemplo).
         while True:
             item = await send_queue.get()
             if item is None:
@@ -449,12 +495,13 @@ async def _executar_com_engine(
         # áudio do turno ainda está saindo, e precisa parar o motor.
         nonlocal total_chars, proxima_fala
         encerrado = False
-        ler = leitor or _Leitor(websocket)
+        # Sem leitor compartilhado (chamada direta, nos testes), lê com um próprio.
+        leitor_da_fala = leitor or _Leitor(websocket)
         try:
             while True:
-                raw = await ler.receber()
+                mensagem_bruta = await leitor_da_fala.receber()
                 try:
-                    msg = parse_client_msg(raw)
+                    msg = parse_client_msg(mensagem_bruta)
                 except ValidationError:
                     continue
                 if isinstance(msg, CancelMsg):
@@ -488,6 +535,8 @@ async def _executar_com_engine(
     reader_task = asyncio.create_task(_reader())
 
     try:
+        # O motor acabando encerra a fala normalmente; a leitura acabando antes significa
+        # cancelamento, desconexão, texto longo demais ou o "start" da próxima fala.
         await asyncio.wait({audio_task, reader_task}, return_when=asyncio.FIRST_COMPLETED)
     finally:
         # Cancelamento não espera a síntese em curso terminar (gate: < 50 ms).
@@ -498,6 +547,7 @@ async def _executar_com_engine(
         reader_task.cancel()
         with contextlib.suppress(asyncio.CancelledError, Exception):
             await reader_task
+        # Só agora encerra o envio, para o "done" sair depois de todo o áudio enfileirado.
         await send_queue.put(None)
         with contextlib.suppress(Exception):
             await sender_task
@@ -518,8 +568,9 @@ async def _executar_com_engine(
                 "audio_ms": round(total_audio_ms, 1),
             }
         )
-        total_ms = (time.monotonic() - t0) * 1000
-        task = asyncio.create_task(
+        total_ms = (time.monotonic() - inicio) * 1000
+        # Gravação do uso fora do caminho crítico: a próxima fala não espera o banco.
+        tarefa_uso = asyncio.create_task(
             _gravar_uso(
                 request_id=request_id,
                 client_id=client.id,
@@ -533,9 +584,10 @@ async def _executar_com_engine(
                 fallback_reason=decision.fallback_reason,
             )
         )
-        _tarefas_uso.add(task)
-        task.add_done_callback(_tarefas_uso.discard)
+        _tarefas_uso.add(tarefa_uso)
+        tarefa_uso.add_done_callback(_tarefas_uso.discard)
         return True, proxima_fala
+    # Cancelamento (do cliente, por desconexão ou por texto longo) fecha a conexão.
     streams_cancelled.inc()
     with contextlib.suppress(Exception):
         await websocket.close()

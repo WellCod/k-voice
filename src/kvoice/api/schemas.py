@@ -157,12 +157,13 @@ class RoutingRuleResponse(BaseModel):
 
     @field_validator("voice_mapping", mode="before")
     @classmethod
-    def _parse_mapping(cls, v: object) -> dict[str, str] | None:
-        if isinstance(v, str):
-            parsed: dict[str, str] = json.loads(v)
-            return parsed
-        if isinstance(v, dict):
-            return {str(k): str(val) for k, val in v.items()}
+    def _parse_mapping(cls, valor: object) -> dict[str, str] | None:
+        """No banco o mapa é JSON em texto; na resposta sai como objeto."""
+        if isinstance(valor, str):
+            mapa: dict[str, str] = json.loads(valor)
+            return mapa
+        if isinstance(valor, dict):
+            return {str(chave): str(voz) for chave, voz in valor.items()}
         return None
 
 

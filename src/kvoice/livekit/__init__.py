@@ -25,15 +25,16 @@ def create_tts(
     """
     from livekit.agents import tts as agents_tts  # type: ignore[import-untyped]
 
-    kvoice: TTS = TTS(base_url=base_url, token=token, voice_id=voice_id)
+    kvoice_tts: TTS = TTS(base_url=base_url, token=token, voice_id=voice_id)
 
     if elevenlabs_api_key and elevenlabs_voice_id:
         from livekit.plugins.elevenlabs import TTS as ElevenLabsTTS  # type: ignore[import-untyped]
 
-        eleven = ElevenLabsTTS(
+        elevenlabs_tts = ElevenLabsTTS(
             api_key=elevenlabs_api_key,
             voice_id=elevenlabs_voice_id,
         )
-        return agents_tts.FallbackAdapter([kvoice, eleven])
+        # A ordem define a prioridade: k-voice primeiro, ElevenLabs só quando ele falha.
+        return agents_tts.FallbackAdapter([kvoice_tts, elevenlabs_tts])
 
-    return kvoice
+    return kvoice_tts

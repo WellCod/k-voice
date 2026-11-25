@@ -33,7 +33,7 @@ class _OcultaToken(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         if isinstance(record.args, tuple):
-            record.args = tuple(_ocultar(a) for a in record.args)
+            record.args = tuple(_ocultar(argumento) for argumento in record.args)
         if isinstance(record.msg, str):
             record.msg = _RE_TOKEN_QUERY.sub(r"\g<1>***", record.msg)
         return True
@@ -42,12 +42,14 @@ class _OcultaToken(logging.Filter):
 def _instalar_filtro_token() -> None:
     for nome in ("uvicorn.error", "uvicorn.access"):
         logger = logging.getLogger(nome)
-        if not any(isinstance(f, _OcultaToken) for f in logger.filters):
+        # create_app pode rodar mais de uma vez no processo (testes): um filtro basta.
+        if not any(isinstance(filtro, _OcultaToken) for filtro in logger.filters):
             logger.addFilter(_OcultaToken())
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Abre o banco, carrega o motor (se nenhum foi injetado) e roda o gerente do MCP."""
     log = logging.getLogger("kvoice.startup")
     settings = get_settings()
     init_db(settings.database_url)
@@ -131,13 +133,13 @@ def create_app() -> FastAPI:
         engine = get_engine()
         if engine is None:
             return {"status": "ok", "engine": None, "active": 0, "queued": 0, "rtf": None}
-        cap = engine.capacity()
+        capacidade = engine.capacity()
         return {
             "status": "ok",
             "engine": engine.name,
-            "active": cap.active_streams,
-            "queued": cap.queued,
-            "rtf": cap.rtf_recent,
+            "active": capacidade.active_streams,
+            "queued": capacidade.queued,
+            "rtf": capacidade.rtf_recent,
         }
 
     @app.get("/metrics")

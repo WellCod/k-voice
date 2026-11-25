@@ -9,19 +9,20 @@ import wave
 
 
 def _ffmpeg_bin() -> str:
-    found = shutil.which("ffmpeg")
-    if found:
-        return found
+    """Caminho do ffmpeg: o do PATH ou, no Windows, o instalado pelo winget."""
+    no_path = shutil.which("ffmpeg")
+    if no_path:
+        return no_path
     # fallback para instalação via winget no Windows
     import glob
     import os
 
-    pattern = os.path.expandvars(
+    padrao_winget = os.path.expandvars(
         r"%LOCALAPPDATA%\Microsoft\WinGet\Packages\Gyan.FFmpeg*\**\ffmpeg.exe"
     )
-    matches = glob.glob(pattern, recursive=True)
-    if matches:
-        return matches[0]
+    encontrados = glob.glob(padrao_winget, recursive=True)
+    if encontrados:
+        return encontrados[0]
     return "ffmpeg"
 
 
@@ -51,13 +52,13 @@ def pcm_duration_ms(pcm_data: bytes, sample_rate: int) -> float:
 
 
 def _to_wav(pcm_data: bytes, sample_rate: int) -> bytes:
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(sample_rate)
-        wf.writeframes(pcm_data)
-    return buf.getvalue()
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as arquivo_wav:
+        arquivo_wav.setnchannels(1)
+        arquivo_wav.setsampwidth(2)
+        arquivo_wav.setframerate(sample_rate)
+        arquivo_wav.writeframes(pcm_data)
+    return buffer.getvalue()
 
 
 def preprocess_ref_audio(audio_bytes: bytes, ext: str) -> tuple[bytes, float]:
@@ -66,27 +67,30 @@ def preprocess_ref_audio(audio_bytes: bytes, ext: str) -> tuple[bytes, float]:
     Retorna (wav_bytes, duration_seconds).
     Levanta RuntimeError se ffmpeg falhar.
     """
+    # Contêineres que o ffmpeg não detecta sozinho lendo de pipe.
     _EXT_FMT: dict[str, list[str]] = {
         "webm": ["-f", "webm"],
         "m4a": ["-f", "mp4"],
         "ogg": ["-f", "ogg"],
     }
-    fmt_args = _EXT_FMT.get(ext, [])
-    af = (
+    args_formato_entrada = _EXT_FMT.get(ext, [])
+    # silenceremove só corta o começo: inverte, corta de novo e desinverte para tirar o
+    # silêncio do fim. O loudnorm vem por último para medir só a fala.
+    filtros_ffmpeg = (
         "silenceremove=start_periods=1:start_silence=0.3:start_threshold=-50dB,"
         "areverse,"
         "silenceremove=start_periods=1:start_silence=0.3:start_threshold=-50dB,"
         "areverse,"
         "loudnorm=I=-16:TP=-1.5:LRA=11"
     )
-    cmd = [
+    comando = [
         _ffmpeg_bin(),
         "-y",
-        *fmt_args,
+        *args_formato_entrada,
         "-i",
         "pipe:0",
         "-af",
-        af,
+        filtros_ffmpeg,
         "-ar",
         "16000",
         "-ac",
@@ -95,17 +99,18 @@ def preprocess_ref_audio(audio_bytes: bytes, ext: str) -> tuple[bytes, float]:
         "s16le",
         "pipe:1",
     ]
-    result = subprocess.run(cmd, input=audio_bytes, capture_output=True, timeout=120)
-    if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg preprocess: {result.stderr.decode(errors='replace')[:400]}")
+    resultado = subprocess.run(comando, input=audio_bytes, capture_output=True, timeout=120)
+    if resultado.returncode != 0:
+        raise RuntimeError(f"ffmpeg preprocess: {resultado.stderr.decode(errors='replace')[:400]}")
     # PCM cru: WAV num pipe sai com o tamanho do bloco de dados em 0xFFFFFFFF, e a duração
     # lida do cabeçalho dava ~134 mil segundos para qualquer áudio.
-    pcm = result.stdout
+    pcm = resultado.stdout
     return _to_wav(pcm, 16_000), pcm_duration_ms(pcm, 16_000) / 1000
 
 
 def _ffmpeg(pcm_data: bytes, sample_rate: int, extra_args: list[str]) -> bytes:
-    cmd = [
+    """Passa PCM 16-bit LE mono pelo ffmpeg com os argumentos de saída dados."""
+    comando = [
         _ffmpeg_bin(),
         "-y",
         "-f",
@@ -119,7 +124,7 @@ def _ffmpeg(pcm_data: bytes, sample_rate: int, extra_args: list[str]) -> bytes:
         *extra_args,
         "pipe:1",
     ]
-    result = subprocess.run(cmd, input=pcm_data, capture_output=True, timeout=60)
-    if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg: {result.stderr.decode(errors='replace')[:300]}")
-    return result.stdout
+    resultado = subprocess.run(comando, input=pcm_data, capture_output=True, timeout=60)
+    if resultado.returncode != 0:
+        raise RuntimeError(f"ffmpeg: {resultado.stderr.decode(errors='replace')[:300]}")
+    return resultado.stdout
