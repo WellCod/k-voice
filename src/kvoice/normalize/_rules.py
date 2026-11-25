@@ -380,28 +380,33 @@ def _ler_endereco(endereco: str) -> str:
     return " ".join(palavras)
 
 
-def _endereco(m: re.Match[str]) -> str:
-    bruto = m.group(0)
-    final = _RE_PONTUACAO_FINAL.search(bruto)
-    sufixo = final.group(0) if final else ""
+def _endereco(trecho: re.Match[str]) -> str:
+    # O regex de URL engole a pontuação que fecha a frase ("Acesse site.com.br.");
+    # ela volta ao fim, fora da leitura, para não virar "ponto" falado.
+    bruto = trecho.group(0)
+    pontuacao_final = _RE_PONTUACAO_FINAL.search(bruto)
+    sufixo = pontuacao_final.group(0) if pontuacao_final else ""
     return _ler_endereco(bruto[: len(bruto) - len(sufixo)]) + sufixo
 
 
-def _pontuacao_repetida(m: re.Match[str]) -> str:
+def _pontuacao_repetida(trecho: re.Match[str]) -> str:
     # "Sério?!" continua pergunta.
-    return "?" if "?" in m.group(0) else "!"
+    return "?" if "?" in trecho.group(0) else "!"
 
 
-def _unidade(m: re.Match[str]) -> str:
-    if m.group(2) == "G":
-        return m.group(0)  # 4G e 5G são rede de celular, não gramas
-    numero = m.group(1)
-    singular, plural = _UNIDADES[m.group(2).lower()]
+def _unidade(trecho: re.Match[str]) -> str:
+    """Número com unidade de medida por extenso, no singular só quando o número é 1."""
+    numero, unidade = trecho.group(1), trecho.group(2)
+    if unidade == "G":
+        return trecho.group(0)  # 4G e 5G são rede de celular, não gramas
+    singular, plural = _UNIDADES[unidade.lower()]
     return f"{numero} {singular if numero == '1' else plural}"
 
 
 def _preprocess(text: str) -> str:
     """Lê URLs e e-mails, remove emojis, normaliza tipografia e expande abreviações."""
+    # E-mail antes de URL: o domínio do e-mail casaria sozinho como URL e o "@" ficaria
+    # solto. "1h30min" vira "1h30" aqui para a regra de hora de normalize() ler.
     text = _RE_EMAIL.sub(_endereco, text)
     text = _RE_URL.sub(_endereco, text)
     text = _RE_EMOJI.sub(" ", text)
@@ -413,8 +418,8 @@ def _preprocess(text: str) -> str:
     text = _RE_DIMENSAO.sub(r"\1 por \2", text)
     text = _RE_VEZES.sub(r"\1 vezes", text)
     text = _RE_UNIDADE.sub(_unidade, text)
-    for pat, rep in _ABREVIACOES:
-        text = pat.sub(rep, text)
+    for padrao, expansao in _ABREVIACOES:
+        text = padrao.sub(expansao, text)
     text = re.sub(r"  +", " ", text).strip()
     return text
 
@@ -526,28 +531,29 @@ _ORD_CEM_F = [
 ]
 
 
-def _ordinal_para_palavras(n: int, fem: bool = False) -> str | None:
-    """Converte n (1–999) em ordinal por extenso. Retorna None se fora do intervalo."""
-    if not (1 <= n <= 999):
+def _ordinal_para_palavras(numero: int, fem: bool = False) -> str | None:
+    """Converte `numero` (1–999) em ordinal por extenso. Retorna None se fora do intervalo."""
+    if not (1 <= numero <= 999):
         return None
-    unit = _ORD_UNIT_F if fem else _ORD_UNIT_M
-    dez = _ORD_DEZ_F if fem else _ORD_DEZ_M
-    cem = _ORD_CEM_F if fem else _ORD_CEM_M
+    ordinais_unidade = _ORD_UNIT_F if fem else _ORD_UNIT_M
+    ordinais_dezena = _ORD_DEZ_F if fem else _ORD_DEZ_M
+    ordinais_centena = _ORD_CEM_F if fem else _ORD_CEM_M
     decimo = "décima" if fem else "décimo"
     partes: list[str] = []
-    c, r = divmod(n, 100)
-    if c:
-        partes.append(cem[c])
-    if r < 10:
-        if r:
-            partes.append(unit[r])
-    elif r < 20:
-        partes.append(decimo if r == 10 else f"{decimo} {unit[r - 10]}")
+    centenas, resto = divmod(numero, 100)
+    if centenas:
+        partes.append(ordinais_centena[centenas])
+    if resto < 10:
+        if resto:
+            partes.append(ordinais_unidade[resto])
+    elif resto < 20:
+        # 10–19 não têm forma própria: "décimo", "décimo primeiro", "décimo nono".
+        partes.append(decimo if resto == 10 else f"{decimo} {ordinais_unidade[resto - 10]}")
     else:
-        d, u = divmod(r, 10)
-        partes.append(dez[d])
-        if u:
-            partes.append(unit[u])
+        dezenas, unidades = divmod(resto, 10)
+        partes.append(ordinais_dezena[dezenas])
+        if unidades:
+            partes.append(ordinais_unidade[unidades])
     return " ".join(partes)
 
 
@@ -795,8 +801,9 @@ _FEMININOS = frozenset(
 _RE_PALAVRA_SEGUINTE = re.compile(r"\s+(\w+)")
 
 
-def _feminino_depois(m: re.Match[str]) -> bool:
-    seguinte = _RE_PALAVRA_SEGUINTE.match(m.string, m.end())
+def _feminino_depois(trecho: re.Match[str]) -> bool:
+    """Diz se a palavra logo após o número é um substantivo feminino conhecido."""
+    seguinte = _RE_PALAVRA_SEGUINTE.match(trecho.string, trecho.end())
     return seguinte is not None and seguinte.group(1).lower() in _FEMININOS
 
 
@@ -897,19 +904,21 @@ _RE_TOKEN_ANTES = re.compile(r"(\S+)\.$")
 # ---------------------------------------------------------------------------
 
 
-def _celsius(m: re.Match[str]) -> str:
-    val = m.group(1).replace(",", ".")
-    if "." in val:
-        inteiro, dec = val.split(".", 1)
-        dec_palavras = numero_para_palavras(int(dec))
-        return f"{numero_para_palavras(int(inteiro))} vírgula {dec_palavras} graus Celsius"
-    return f"{numero_para_palavras(int(val))} graus Celsius"
+def _celsius(trecho: re.Match[str]) -> str:
+    """Temperatura em graus Celsius, com ou sem casa decimal ("36,5°C")."""
+    temperatura = trecho.group(1).replace(",", ".")
+    if "." in temperatura:
+        inteiro, decimais = temperatura.split(".", 1)
+        decimais_por_extenso = numero_para_palavras(int(decimais))
+        return f"{numero_para_palavras(int(inteiro))} vírgula {decimais_por_extenso} graus Celsius"
+    return f"{numero_para_palavras(int(temperatura))} graus Celsius"
 
 
-def _moeda(m: re.Match[str]) -> str:
-    reais = int(m.group(1).replace(".", ""))
-    casas = m.group(2) or ""
-    multiplicador = m.group(3)
+def _moeda(trecho: re.Match[str]) -> str:
+    """Valor em reais por extenso, com centavos ou multiplicador ("mil", "milhão")."""
+    reais = int(trecho.group(1).replace(".", ""))
+    casas = trecho.group(2) or ""
+    multiplicador = trecho.group(3)
     if multiplicador:
         # "R$ 2 mil" → "dois mil reais"; "R$ 1,5 milhão" → "um vírgula cinco milhão de reais"
         valor = numero_para_palavras(reais)
@@ -918,151 +927,176 @@ def _moeda(m: re.Match[str]) -> str:
         de = "" if multiplicador == "mil" else " de"
         return f"{valor} {multiplicador}{de} reais"
     # Um dígito depois da vírgula é dezena de centavos: R$ 10,5 = dez reais e cinquenta.
-    cents = int(casas.ljust(2, "0")) if casas else 0
+    centavos = int(casas.ljust(2, "0")) if casas else 0
     partes: list[str] = []
     if reais:
         valor = numero_para_palavras(reais)
-        sep = " de " if reais >= 1_000_000 else " "
-        partes.append(valor + sep + ("real" if reais == 1 else "reais"))
-    if cents:
-        partes.append(numero_para_palavras(cents) + (" centavo" if cents == 1 else " centavos"))
+        # "um milhão de reais", mas "mil reais".
+        separador = " de " if reais >= 1_000_000 else " "
+        partes.append(valor + separador + ("real" if reais == 1 else "reais"))
+    if centavos:
+        partes.append(
+            numero_para_palavras(centavos) + (" centavo" if centavos == 1 else " centavos")
+        )
     return " e ".join(partes) if partes else "zero reais"
 
 
-def _versao(m: re.Match[str]) -> str:
-    return f"{m.group(1)} {m.group(2)} ponto {m.group(3)}"
+def _versao(trecho: re.Match[str]) -> str:
+    prefixo, maior, menor = trecho.groups()
+    return f"{prefixo} {maior} ponto {menor}"
 
 
-def _dia(d: int) -> str:
-    return "primeiro" if d == 1 else numero_para_palavras(d)
+def _dia(dia: int) -> str:
+    return "primeiro" if dia == 1 else numero_para_palavras(dia)
 
 
-def _data_iso(m: re.Match[str]) -> str:
-    ano, mes, dia = int(m.group(1)), int(m.group(2)), int(m.group(3))
+def _data_iso(trecho: re.Match[str]) -> str:
+    """Data AAAA-MM-DD por extenso; mês ou dia fora do intervalo fica como está."""
+    ano, mes, dia = (int(grupo) for grupo in trecho.groups())
     if not (1 <= mes <= 12 and 1 <= dia <= 31):
-        return m.group(0)
+        return trecho.group(0)
     return f"{_dia(dia)} de {MESES[mes]} de {numero_para_palavras(ano)}"
 
 
-def _mes_ano(m: re.Match[str]) -> str:
-    mes = int(m.group(1))
+def _mes_ano(trecho: re.Match[str]) -> str:
+    mes = int(trecho.group(1))
     if not 1 <= mes <= 12:
-        return m.group(0)
-    return f"{MESES[mes]} de {numero_para_palavras(int(m.group(2)))}"
+        return trecho.group(0)
+    return f"{MESES[mes]} de {numero_para_palavras(int(trecho.group(2)))}"
 
 
-def _cnpj(m: re.Match[str]) -> str:
-    g = m.groups()
+# CNPJ, CPF e CEP se leem dígito a dígito, com pausa (vírgula) onde o documento tem
+# ponto, barra ou hífen.
+
+
+def _cnpj(trecho: re.Match[str]) -> str:
+    raiz_1, raiz_2, raiz_3, filial, verificador = trecho.groups()
     return (
-        f"{digitos_separados(g[0])}, {digitos_separados(g[1])}, "
-        f"{digitos_separados(g[2])}, {digitos_separados(g[3])}, {digitos_separados(g[4])}"
+        f"{digitos_separados(raiz_1)}, {digitos_separados(raiz_2)}, "
+        f"{digitos_separados(raiz_3)}, {digitos_separados(filial)}, "
+        f"{digitos_separados(verificador)}"
     )
 
 
-def _cpf(m: re.Match[str]) -> str:
-    g = m.groups()
+def _cpf(trecho: re.Match[str]) -> str:
+    bloco_1, bloco_2, bloco_3, verificador = trecho.groups()
     return (
-        f"{digitos_separados(g[0])}, {digitos_separados(g[1])}, "
-        f"{digitos_separados(g[2])}, {digitos_separados(g[3])}"
+        f"{digitos_separados(bloco_1)}, {digitos_separados(bloco_2)}, "
+        f"{digitos_separados(bloco_3)}, {digitos_separados(verificador)}"
     )
 
 
-def _cep(m: re.Match[str]) -> str:
-    return f"{digitos_separados(m.group(1))}, {digitos_separados(m.group(2))}"
+def _cep(trecho: re.Match[str]) -> str:
+    return f"{digitos_separados(trecho.group(1))}, {digitos_separados(trecho.group(2))}"
 
 
-def _telefone(m: re.Match[str]) -> str:
-    pais, ddd, p1, p2 = m.groups()
-    falado = f"{numero_para_palavras(int(ddd))}, {digitos_separados(p1)}, {digitos_separados(p2)}"
-    return f"mais cinquenta e cinco, {falado}" if pais else falado
+def _telefone(trecho: re.Match[str]) -> str:
+    """Telefone com DDD: DDD como número e o resto dígito a dígito, com "+55" opcional."""
+    codigo_pais, ddd, prefixo, sufixo = trecho.groups()
+    falado = (
+        f"{numero_para_palavras(int(ddd))}, {digitos_separados(prefixo)}, "
+        f"{digitos_separados(sufixo)}"
+    )
+    return f"mais cinquenta e cinco, {falado}" if codigo_pais else falado
 
 
-def _telefone_sem_ddd(m: re.Match[str]) -> str:
-    return f"{digitos_separados(m.group(1))}, {digitos_separados(m.group(2))}"
+def _telefone_sem_ddd(trecho: re.Match[str]) -> str:
+    return f"{digitos_separados(trecho.group(1))}, {digitos_separados(trecho.group(2))}"
 
 
-def _telefone_0800(m: re.Match[str]) -> str:
-    prefixo = numero_para_palavras(int(m.group(1)) * 100)  # 0800 → "zero oitocentos"
-    return f"zero {prefixo}, {digitos_separados(m.group(2))}, {digitos_separados(m.group(3))}"
+def _telefone_0800(trecho: re.Match[str]) -> str:
+    """0300, 0500, 0800 e 0900: prefixo como "zero oitocentos", resto dígito a dígito."""
+    prefixo = numero_para_palavras(int(trecho.group(1)) * 100)  # 0800 → "zero oitocentos"
+    return (
+        f"zero {prefixo}, {digitos_separados(trecho.group(2))}, "
+        f"{digitos_separados(trecho.group(3))}"
+    )
 
 
-def _data(m: re.Match[str]) -> str:
-    d = int(m.group(1))
-    mes = int(m.group(2))
+def _data(trecho: re.Match[str]) -> str:
+    """Data DD/MM/AA(AA) por extenso; mês inválido deixa o trecho como está."""
+    dia = int(trecho.group(1))
+    mes = int(trecho.group(2))
     if not (1 <= mes <= 12):
-        return m.group(0)
-    ano = int(m.group(3))
-    return f"{_dia(d)} de {MESES[mes]} de {numero_para_palavras(ano)}"
+        return trecho.group(0)
+    ano = int(trecho.group(3))
+    return f"{_dia(dia)} de {MESES[mes]} de {numero_para_palavras(ano)}"
 
 
-def _data_curta(m: re.Match[str]) -> str:
-    d = int(m.group(1))
-    mes = int(m.group(2))
-    if 1 <= d <= 12 and mes > 12 and len(m.group(2)) == 2:
+def _data_curta(trecho: re.Match[str]) -> str:
+    """DD/MM vira "dia de mês"; MM/AA com ano de dois dígitos vira validade de cartão."""
+    primeiro = int(trecho.group(1))
+    segundo = int(trecho.group(2))
+    if 1 <= primeiro <= 12 and segundo > 12 and len(trecho.group(2)) == 2:
         # Validade de cartão: 12/25 → "dezembro de vinte e cinco"
-        return f"{MESES[d]} de {numero_para_palavras(mes)}"
-    if not (1 <= mes <= 12) or not (1 <= d <= 31):
-        return m.group(0)
-    return f"{_dia(d)} de {MESES[mes]}"
+        return f"{MESES[primeiro]} de {numero_para_palavras(segundo)}"
+    dia, mes = primeiro, segundo
+    if not (1 <= mes <= 12) or not (1 <= dia <= 31):
+        return trecho.group(0)
+    return f"{_dia(dia)} de {MESES[mes]}"
 
 
-def _hora(m: re.Match[str]) -> str:
-    h = int(m.group(1))
-    mi = int(m.group(2))
-    base = "uma hora" if h == 1 else f"{numero_para_palavras(h, fem=True)} horas"
-    if mi == 0:
+# Hora é feminina ("duas horas", "vinte e uma horas"); minuto é masculino.
+
+
+def _hora(trecho: re.Match[str]) -> str:
+    horas = int(trecho.group(1))
+    minutos = int(trecho.group(2))
+    base = "uma hora" if horas == 1 else f"{numero_para_palavras(horas, fem=True)} horas"
+    if minutos == 0:
         return base
-    return base + f" e {numero_para_palavras(mi)} minuto{'s' if mi != 1 else ''}"
+    return base + f" e {numero_para_palavras(minutos)} minuto{'s' if minutos != 1 else ''}"
 
 
-def _hora_h(m: re.Match[str]) -> str:
-    h = int(m.group(1))
-    base = "uma hora" if h == 1 else f"{numero_para_palavras(h, fem=True)} horas"
-    mi_str = m.group(2)
-    if mi_str:
-        mi = int(mi_str)
-        if mi:
-            return base + f" e {numero_para_palavras(mi)} minuto{'s' if mi != 1 else ''}"
+def _hora_h(trecho: re.Match[str]) -> str:
+    horas = int(trecho.group(1))
+    base = "uma hora" if horas == 1 else f"{numero_para_palavras(horas, fem=True)} horas"
+    minutos_texto = trecho.group(2)
+    if minutos_texto:
+        minutos = int(minutos_texto)
+        if minutos:
+            return base + f" e {numero_para_palavras(minutos)} minuto{'s' if minutos != 1 else ''}"
     return base
 
 
-def _porcentagem(m: re.Match[str]) -> str:
-    inteiro = numero_para_palavras(int(m.group(1)))
-    if m.group(2):
-        dec = numero_para_palavras(int(m.group(2)))
-        return f"{inteiro} vírgula {dec} por cento"
+def _porcentagem(trecho: re.Match[str]) -> str:
+    inteiro = numero_para_palavras(int(trecho.group(1)))
+    if trecho.group(2):
+        decimais = numero_para_palavras(int(trecho.group(2)))
+        return f"{inteiro} vírgula {decimais} por cento"
     return f"{inteiro} por cento"
 
 
-def _decimal(m: re.Match[str]) -> str:
-    inteiro = numero_para_palavras(int(m.group(1).replace(".", "")))
-    casas = m.group(2)
+def _decimal(trecho: re.Match[str]) -> str:
+    inteiro = numero_para_palavras(int(trecho.group(1).replace(".", "")))
+    casas = trecho.group(2)
     # 0,05 é "zero vírgula zero cinco": os zeros à esquerda da parte decimal se falam
     zeros = len(casas) - len(casas.lstrip("0"))
     resto = casas[zeros:]
-    dec = " ".join(["zero"] * zeros + ([numero_para_palavras(int(resto))] if resto else []))
-    return f"{inteiro} vírgula {dec}"
+    decimais = " ".join(["zero"] * zeros + ([numero_para_palavras(int(resto))] if resto else []))
+    return f"{inteiro} vírgula {decimais}"
 
 
-def _milhar(m: re.Match[str]) -> str:
-    return numero_para_palavras(int(m.group(1).replace(".", "")), fem=_feminino_depois(m))
+def _milhar(trecho: re.Match[str]) -> str:
+    numero = int(trecho.group(1).replace(".", ""))
+    return numero_para_palavras(numero, fem=_feminino_depois(trecho))
 
 
-def _ordinal(m: re.Match[str]) -> str:
-    n = int(m.group(1))
-    fem = m.group(2) == "ª"
-    result = _ordinal_para_palavras(n, fem)
-    if result:
-        return result
+def _ordinal(trecho: re.Match[str]) -> str:
+    numero = int(trecho.group(1))
+    fem = trecho.group(2) == "ª"
+    por_extenso = _ordinal_para_palavras(numero, fem)
+    if por_extenso:
+        return por_extenso
     # Acima de 999: retorna apenas o cardinal (símbolo seria ilegível pelo TTS)
-    return numero_para_palavras(n)
+    return numero_para_palavras(numero)
 
 
 _VOGAIS_UPPER = frozenset("AEIOUÁÉÍÓÚÂÊÎÔÛÃÕ")
 
 
-def _acronimo(m: re.Match[str]) -> str:
-    return _ler_sigla(m.group(0))
+def _acronimo(trecho: re.Match[str]) -> str:
+    return _ler_sigla(trecho.group(0))
 
 
 # Sigla no plural ("CPFs", "ONGs", "PDFs"): lê a sigla como no singular e põe o "s" no
@@ -1070,8 +1104,8 @@ def _acronimo(m: re.Match[str]) -> str:
 _RE_SIGLA_PLURAL = re.compile(r"\b([A-Z]{2,20})s\b")
 
 
-def _sigla_plural(m: re.Match[str]) -> str:
-    sigla = m.group(1)
+def _sigla_plural(trecho: re.Match[str]) -> str:
+    sigla = trecho.group(1)
     forma = _PALAVRAS_NATIVAS.get(sigla) or _ler_sigla(sigla)
     # "pix" e formas já terminadas em s ficam iguais no plural.
     return forma if forma.endswith(("s", "x")) else forma + "s"
@@ -1085,19 +1119,19 @@ def _ler_sigla(palavra: str) -> str:
     # Universidades e institutos federais (UFRJ, UFMG, UERJ, IFSP): têm vogal, mas
     # ninguém lê como palavra.
     if len(palavra) >= 3 and palavra[:2] in ("UF", "UE", "IF"):
-        return " ".join(_LETRAS.get(c, c) for c in palavra)
-    if any(c in _VOGAIS_UPPER for c in palavra):
+        return " ".join(_LETRAS.get(letra, letra) for letra in palavra)
+    if any(letra in _VOGAIS_UPPER for letra in palavra):
         return palavra.lower()
-    return " ".join(_LETRAS.get(c, c) for c in palavra)
+    return " ".join(_LETRAS.get(letra, letra) for letra in palavra)
 
 
-def _cardinal(m: re.Match[str]) -> str:
-    s = m.group(0)
+def _cardinal(trecho: re.Match[str]) -> str:
+    digitos = trecho.group(0)
     # Código ou número longo (protocolo, pedido) e número com zero à esquerda (007)
     # se falam dígito a dígito.
-    if len(s) >= _MIN_DIGITOS_CODIGO or (len(s) > 1 and s[0] == "0"):
-        return digitos_separados(s)
-    return numero_para_palavras(int(s), fem=_feminino_depois(m))
+    if len(digitos) >= _MIN_DIGITOS_CODIGO or (len(digitos) > 1 and digitos[0] == "0"):
+        return digitos_separados(digitos)
+    return numero_para_palavras(int(digitos), fem=_feminino_depois(trecho))
 
 
 # ---------------------------------------------------------------------------
@@ -1106,44 +1140,66 @@ def _cardinal(m: re.Match[str]) -> str:
 
 
 def normalize(text: str, dict_: dict[str, str] | None = None) -> str:
+    """Devolve o texto pronto para o TTS: números, datas, documentos e siglas por extenso.
+
+    Cada regra consome o que casa, então a ordem decide quem lê cada trecho: os
+    formatos mais específicos vêm antes dos genéricos que também os casariam.
+    """
     text = _preprocess(text)
+    # Dicionário antes das regras: o termo do cliente casa com o texto como foi escrito,
+    # não com números e siglas já por extenso.
     if dict_:
         for termo, expansao in dict_.items():
             text = text.replace(termo, expansao)
+    # "36,5°C" antes do decimal; "versão 2.0" antes do ponto decimal virar vírgula.
     text = _RE_CELSIUS.sub(_celsius, text)
     text = _RE_VERSAO.sub(_versao, text)
+    # "R$ 10.50" vira "R$ 10,50" antes da moeda para ser lido como centavos.
     text = _RE_DECIMAL_PONTO.sub(r"\1,\2", text)
+    # Moeda antes de decimal e milhar, que leriam "1.500,00" sem "reais".
     text = _RE_MOEDA.sub(_moeda, text)
+    # Documentos antes de milhar, intervalo e cardinal: CPF seria lido como milhar e
+    # CEP ("01310-100") como intervalo.
     text = _RE_CNPJ.sub(_cnpj, text)
     text = _RE_CPF.sub(_cpf, text)
     text = _RE_CEP.sub(_cep, text)
     text = _RE_DATA_ISO.sub(_data_iso, text)
+    # Telefones antes do intervalo ("9999-8888" não é "de 9999 a 8888") e do cardinal.
+    # 0800 primeiro, depois do mais explícito (parênteses) ao mais ambíguo (sem DDD).
     text = _RE_TELEFONE_0800.sub(_telefone_0800, text)
     text = _RE_TELEFONE.sub(_telefone, text)
     text = _RE_TELEFONE_SEM_PARENTESES.sub(_telefone, text)
     text = _RE_TELEFONE_COLADO.sub(_telefone, text)
     text = _RE_TELEFONE_SEM_DDD.sub(_telefone_sem_ddd, text)
+    # Intervalo antes de hora e porcentagem: "8h-18h" e "10-20%" viram "8h a 18h" e
+    # "10% a 20%", lidos pelas regras seguintes.
     text = _RE_INTERVALO.sub(r"\1\2 a \3\4", text)
+    # Data completa antes de mês/ano e de data curta, que casariam pedaços dela.
     text = _RE_DATA.sub(_data, text)
     text = _RE_MES_ANO.sub(_mes_ano, text)
     text = _RE_DATA_CURTA.sub(_data_curta, text)
+    # "18:30h" antes do formato com "h", que leria só o "30h".
     text = _RE_HORA.sub(_hora, text)
     text = _RE_HORA_H.sub(_hora_h, text)
     text = _RE_PORCENTAGEM.sub(_porcentagem, text)
     text = _RE_DECIMAL.sub(_decimal, text)
     text = _RE_MILHAR.sub(_milhar, text)
     text = _RE_ORDINAL.sub(_ordinal, text)
+    # Siglas: plural e formas fixas antes da leitura genérica de acrônimo, que leria
+    # como palavra qualquer sigla com vogal ("TED", "SUS").
     text = _RE_SIGLA_PLURAL.sub(_sigla_plural, text)
     for padrao, forma in _RE_PALAVRAS_NATIVAS:
         text = padrao.sub(forma, text)
-    for pat, rep in _ANGLICISMOS:
-        text = pat.sub(rep, text)
+    for padrao, pronuncia in _ANGLICISMOS:
+        text = padrao.sub(pronuncia, text)
     text = _RE_ACRONIMO.sub(_acronimo, text)
+    # Cardinal por último: lê o número que nenhuma regra específica reconheceu.
     text = _RE_CARDINAL.sub(_cardinal, text)
     return text
 
 
 def _fecha_frase(text: str, fim: int) -> bool:
+    """Diz se o ponto que termina em `fim` encerra a frase (não é abreviação nem inicial)."""
     antes = _RE_TOKEN_ANTES.search(text, 0, fim)
     if antes is None:
         return True
@@ -1165,14 +1221,16 @@ def normalize_incremental(
     `pre` recebe só as frases completas, antes da normalização (dicionário do cliente):
     um termo nunca é aplicado partido entre dois pedaços do LLM.
     """
-    last: re.Match[str] | None = None
-    for m in _RE_SAFE.finditer(text):
-        if _fecha_frase(text, m.start()):
-            last = m
-    if last is None:
+    # Corta no último fim de frase de verdade; o que vem depois pode ainda estar no meio
+    # de um número, data ou sigla que o próximo pedaço completa.
+    ultimo_corte: re.Match[str] | None = None
+    for espaco_apos_frase in _RE_SAFE.finditer(text):
+        if _fecha_frase(text, espaco_apos_frase.start()):
+            ultimo_corte = espaco_apos_frase
+    if ultimo_corte is None:
         return "", text
-    pos = last.end()
-    pronto = text[:pos].rstrip()
+    posicao_corte = ultimo_corte.end()
+    pronto = text[:posicao_corte].rstrip()
     if pre is not None:
         pronto = pre(pronto)
-    return normalize(pronto, dict_), text[pos:]
+    return normalize(pronto, dict_), text[posicao_corte:]

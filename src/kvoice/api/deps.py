@@ -25,11 +25,12 @@ DbSession = Annotated[AsyncSession, Depends(get_db)]
 _log = logging.getLogger(__name__)
 
 
-def _consulta_token(raw: str) -> Select[ApiToken]:
-    return _consulta_token_por_hash(hash_token(raw))
+def _consulta_token(token_em_texto: str) -> Select[ApiToken]:
+    return _consulta_token_por_hash(hash_token(token_em_texto))
 
 
 def _consulta_token_por_hash(token_hash: str) -> Select[ApiToken]:
+    """Token ativo de cliente ativo; desativar qualquer um dos dois corta o acesso."""
     return (
         select(ApiToken)
         .join(Client, ApiToken.client_id == Client.id)
@@ -42,38 +43,42 @@ def _consulta_token_por_hash(token_hash: str) -> Select[ApiToken]:
     )
 
 
-async def autenticar_token(raw: str) -> tuple[Client, ApiToken] | None:
+async def autenticar_token(token_em_texto: str) -> tuple[Client, ApiToken] | None:
     """Valida o token fora de uma dependência do FastAPI (WebSocket, compat, MCP)."""
     # A chave do cache é o hash: o token em texto não fica guardado na memória.
-    return await _autenticar_por_hash(hash_token(raw))
+    return await _autenticar_por_hash(hash_token(token_em_texto))
 
 
 @em_cache
 async def _autenticar_por_hash(token_hash: str) -> tuple[Client, ApiToken] | None:
+    """(cliente, token) do hash, ou None; abre sessão própria para poder ir ao cache."""
     async with session_factory()() as db:
-        record = (await db.execute(_consulta_token_por_hash(token_hash))).scalar_one_or_none()
-    if record is None:
+        registro = (await db.execute(_consulta_token_por_hash(token_hash))).scalar_one_or_none()
+    if registro is None:
         return None
-    return record.client, record
+    return registro.client, registro
 
 
 async def _autenticar(
     authorization: Annotated[str | None, Header()] = None,
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> tuple[Client, ApiToken]:
+    """Dependência das rotas HTTP: lê o `Authorization: Bearer` e devolve (cliente, token)."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token ausente")
-    raw = authorization.removeprefix("Bearer ")
-    record = (await db.execute(_consulta_token(raw))).scalar_one_or_none()
-    if record is None:
+    token_em_texto = authorization.removeprefix("Bearer ")
+    registro = (await db.execute(_consulta_token(token_em_texto))).scalar_one_or_none()
+    if registro is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
-    return record.client, record
+    return registro.client, registro
 
 
 AuthDep = Annotated[tuple[Client, ApiToken], Depends(_autenticar)]
 
 
 def _exigir_scope(scope: str):  # type: ignore[no-untyped-def]
+    """Fábrica de dependência que exige o escopo no token e devolve (cliente, token)."""
+
     async def _check(auth: AuthDep) -> tuple[Client, ApiToken]:
         _, token = auth
         if not token.has_scope(scope):

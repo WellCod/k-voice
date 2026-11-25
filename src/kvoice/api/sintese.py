@@ -79,11 +79,13 @@ async def sintetizar_em_partes(
         return await engine.synthesize(partes[0], voice, opts)
     pcm: list[bytes] = []
     ttfa_ms = 0.0
-    for i, parte in enumerate(partes):
-        seg = await engine.synthesize(parte, voice, opts)
-        if i == 0:
-            ttfa_ms = seg.ttfa_ms
-        pcm.append(seg.data)
+    for indice, parte in enumerate(partes):
+        segmento = await engine.synthesize(parte, voice, opts)
+        # O TTFA do conjunto é o da primeira parte: é quando o primeiro áudio fica pronto.
+        if indice == 0:
+            ttfa_ms = segmento.ttfa_ms
+        pcm.append(segmento.data)
+    # PCM de 16 bits: 2 bytes por amostra de silêncio.
     silencio = b"\x00" * int(_SILENCIO_ENTRE_PARTES_S * engine.sample_rate) * 2
     junto = silencio.join(pcm)
     return Audio(

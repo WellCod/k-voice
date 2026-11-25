@@ -40,6 +40,7 @@ _VALID_SPEAKERS = frozenset(
 
 
 def _pcm_from_wav(wav: np.ndarray) -> bytes:
+    """Converte a forma de onda float em [-1, 1] do modelo para PCM 16-bit."""
     return (wav.flatten() * 32767).clip(-32767, 32767).astype(np.int16).tobytes()
 
 
@@ -116,8 +117,9 @@ class Qwen3TTSEngine:
     # ------------------------------------------------------------------
 
     def _speaker_for(self, voice: Voice) -> str:
-        candidate = (voice.model_id or "").lower().replace(" ", "_")
-        return candidate if candidate in _VALID_SPEAKERS else self._speaker
+        """Speaker do model_id da voz, ou o padrão do motor se não for um preset válido."""
+        candidato = (voice.model_id or "").lower().replace(" ", "_")
+        return candidato if candidato in _VALID_SPEAKERS else self._speaker
 
     def _infer_preset(
         self, text: str, speaker: str, language: str, instruct: str | None
@@ -143,11 +145,13 @@ class Qwen3TTSEngine:
 
         base = self._ensure_base_model()
         assert isinstance(base, Qwen3TTSModel)
-        with arquivo_decifrado(ref_audio_path) as ref:
+        # A referência fica cifrada em disco; o modelo só lê caminho de arquivo, então a
+        # cópia decifrada existe só durante a geração.
+        with arquivo_decifrado(ref_audio_path) as caminho_decifrado:
             return base.generate_voice_clone(  # type: ignore[no-any-return]
                 text=text,
                 language=language,
-                ref_audio=ref,
+                ref_audio=caminho_decifrado,
                 ref_text=ref_text,
             )
 
@@ -158,34 +162,43 @@ class Qwen3TTSEngine:
     async def _executar(
         self,
         lock: asyncio.Semaphore,
-        fn: Callable[..., tuple[list[np.ndarray], int]],
+        inferencia: Callable[..., tuple[list[np.ndarray], int]],
         *args: object,
     ) -> tuple[list[np.ndarray], int]:
+        """Roda a inferência numa thread, uma por vez por modelo, e devolve (wavs, taxa).
+
+        Quem espera o lock conta em `_waiting` (fila de admissão); quem está rodando, em
+        `_active`.
+        """
         self._waiting += 1
         try:
             await lock.acquire()
         finally:
             self._waiting -= 1
         self._active += 1
-        fut = asyncio.ensure_future(asyncio.to_thread(fn, *args))
+        futuro = asyncio.ensure_future(asyncio.to_thread(inferencia, *args))
 
         # A thread não para com o cancelamento: o lock só é liberado quando ela termina,
         # senão duas inferências rodariam ao mesmo tempo no mesmo modelo.
-        def _liberar(f: asyncio.Future[tuple[list[np.ndarray], int]]) -> None:
+        def _liberar(concluido: asyncio.Future[tuple[list[np.ndarray], int]]) -> None:
             self._active -= 1
             lock.release()
-            if not f.cancelled():
-                f.exception()
+            # Consome a exceção de quem foi cancelado no meio, para o asyncio não
+            # registrar "exception was never retrieved".
+            if not concluido.cancelled():
+                concluido.exception()
 
-        fut.add_done_callback(_liberar)
-        return await asyncio.shield(fut)
+        futuro.add_done_callback(_liberar)
+        # O shield deixa o chamador ser cancelado sem cancelar o futuro: o callback acima
+        # continua responsável por liberar o lock quando a thread sair.
+        return await asyncio.shield(futuro)
 
     async def synthesize(self, text: str, voice: Voice, opts: SynthOptions) -> Audio:
         language = _resolve_language(voice)
 
         if voice.ref_audio and voice.ref_text:
             # Voz clonada — usa modelo Base
-            wavs, sr = await self._executar(
+            wavs, taxa_amostragem = await self._executar(
                 self._base_lock,
                 self._infer_clone,
                 text,
@@ -196,18 +209,19 @@ class Qwen3TTSEngine:
         else:
             # Voz preset — usa modelo CustomVoice
             speaker = self._speaker_for(voice)
+            # Estilo do pedido tem precedência; "neutro" cai na instrução fixa da voz.
             instruct = (
                 opts.style
                 if (opts.style and opts.style.lower() not in ("", "neutro"))
                 else (voice.style_prompt or None)
             )
-            wavs, sr = await self._executar(
+            wavs, taxa_amostragem = await self._executar(
                 self._lock, self._infer_preset, text, speaker, language, instruct
             )
 
         pcm = _pcm_from_wav(wavs[0])
-        duration_ms = len(wavs[0]) / sr * 1000
-        return Audio(data=pcm, sample_rate=sr, duration_ms=duration_ms, ttfa_ms=0.0)
+        duration_ms = len(wavs[0]) / taxa_amostragem * 1000
+        return Audio(data=pcm, sample_rate=taxa_amostragem, duration_ms=duration_ms, ttfa_ms=0.0)
 
     async def stream(
         self,

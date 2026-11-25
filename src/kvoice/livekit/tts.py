@@ -56,21 +56,28 @@ class _Pool:
 
     def __init__(self, url: str) -> None:
         self._url = url
+        # (conexão, instante em que voltou ao pool), a mais recente no fim.
         self._ociosas: list[tuple[Any, float]] = []
 
     async def abrir(self) -> Any:
         return await websockets.connect(self._url, open_timeout=_TIMEOUT_CONEXAO_S)
 
     def pegar(self) -> Any | None:
+        """Conexão ociosa ainda aberta e dentro da validade, ou None.
+
+        Pega a mais recente primeiro (menor chance de o servidor já tê-la fechado) e
+        fecha em segundo plano as que caíram ou passaram do tempo.
+        """
         agora = time.monotonic()
         while self._ociosas:
-            ws, desde = self._ociosas.pop()
-            if ws.state is State.OPEN and agora - desde < _OCIOSA_MAX_S:
+            ws, ociosa_desde = self._ociosas.pop()
+            if ws.state is State.OPEN and agora - ociosa_desde < _OCIOSA_MAX_S:
                 return ws
             asyncio.ensure_future(_fechar(ws))
         return None
 
     def devolver(self, ws: Any) -> None:
+        """Guarda a conexão para a próxima fala; fechada ou com pool cheio, descarta."""
         if ws.state is State.OPEN and len(self._ociosas) < _POOL_MAX:
             self._ociosas.append((ws, time.monotonic()))
         else:
@@ -132,28 +139,31 @@ class TTS(agents_tts.TTS):
         Tenta uma conexão do pool; se ela caiu enquanto esperava, abre outra. Só a falha
         de uma conexão nova vira erro (e aí o FallbackAdapter assume).
         """
-        start = json.dumps(
+        mensagem_start = json.dumps(
             {"type": "start", "voice_id": self._opts.voice_id, "format": "pcm_24000"}
         )
         reaproveitada = self._pool.pegar()
+        # No máximo duas tentativas: a conexão do pool (se houver) e uma nova.
         for ws in (reaproveitada, None):
             if ws is None:
                 ws = await self._pool.abrir()
             try:
-                await ws.send(start)
-                first = json.loads(await ws.recv())
+                await ws.send(mensagem_start)
+                resposta = json.loads(await ws.recv())
             except ConnectionClosed:
                 await _fechar(ws)
                 if ws is reaproveitada:
                     continue
                 raise
-            if first.get("type") != "started":
+            if resposta.get("type") != "started":
                 await _fechar(ws)
-                raise RuntimeError(f"k-voice: resposta inesperada ao start: {first}")
+                raise RuntimeError(f"k-voice: resposta inesperada ao start: {resposta}")
             return ws
         raise RuntimeError("k-voice: não foi possível iniciar a fala")  # pragma: no cover
 
     def _terminar_fala(self, ws: Any, ok: bool) -> None:
+        # Só conexão que chegou ao "done" volta ao pool: depois de cancelamento ou erro
+        # ainda pode haver áudio da fala anterior em trânsito nela.
         if ok:
             self._pool.devolver(ws)
         else:
@@ -181,16 +191,17 @@ class ChunkedStream(agents_tts.ChunkedStream):
             await ws.send(json.dumps({"type": "text", "text": self._input_text}))
             await ws.send(json.dumps({"type": "end"}))
 
-            async for raw in ws:
-                if isinstance(raw, bytes):
-                    output_emitter.push(raw)
-                elif isinstance(raw, str):
-                    msg = json.loads(raw)
-                    if msg.get("type") == "done":
+            # Binário é PCM; texto é mensagem de controle em JSON.
+            async for recebido in ws:
+                if isinstance(recebido, bytes):
+                    output_emitter.push(recebido)
+                elif isinstance(recebido, str):
+                    mensagem = json.loads(recebido)
+                    if mensagem.get("type") == "done":
                         ok = True
                         break
-                    if msg.get("type") == "error":
-                        raise RuntimeError(f"k-voice error: {msg.get('code')}")
+                    if mensagem.get("type") == "error":
+                        raise RuntimeError(f"k-voice error: {mensagem.get('code')}")
         finally:
             tts._terminar_fala(ws, ok)
 
@@ -218,6 +229,8 @@ class SynthesizeStream(agents_tts.SynthesizeStream):
         )
         output_emitter.start_segment(segment_id=str(uuid.uuid4()))
 
+        # O envio do texto corre numa tarefa à parte para o áudio começar a ser recebido
+        # enquanto o LLM ainda gera tokens.
         async def _send() -> None:
             async for item in self._input_ch:
                 if isinstance(item, agents_tts.SynthesizeStream._FlushSentinel):
@@ -229,24 +242,25 @@ class SynthesizeStream(agents_tts.SynthesizeStream):
 
         send_task = asyncio.create_task(_send())
         try:
-            async for raw in ws:
-                if isinstance(raw, bytes):
-                    output_emitter.push(raw)
-                elif isinstance(raw, str):
-                    msg = json.loads(raw)
-                    t = msg.get("type")
-                    if t == "flushed":
+            async for recebido in ws:
+                if isinstance(recebido, bytes):
+                    output_emitter.push(recebido)
+                elif isinstance(recebido, str):
+                    mensagem = json.loads(recebido)
+                    tipo = mensagem.get("type")
+                    if tipo == "flushed":
                         output_emitter.end_segment()
                         output_emitter.start_segment(segment_id=str(uuid.uuid4()))
-                    elif t == "done":
+                    elif tipo == "done":
                         # O "end" já saiu (o servidor só manda "done" depois dele); a conexão
                         # só volta ao pool com o envio encerrado.
                         await send_task
                         ok = True
                         break
-                    elif t == "error":
-                        raise RuntimeError(f"k-voice error: {msg.get('code')}")
+                    elif tipo == "error":
+                        raise RuntimeError(f"k-voice error: {mensagem.get('code')}")
         except asyncio.CancelledError:
+            # Barge-in: avisa o servidor para interromper a síntese; a conexão é fechada no finally.
             with contextlib.suppress(Exception):
                 await ws.send(json.dumps({"type": "cancel"}))
             raise

@@ -22,29 +22,33 @@ _caches: list[dict[object, tuple[float, object]]] = []
 
 
 def limpar_cache_de_consultas() -> None:
+    """Esvazia o cache de todas as funções decoradas com `em_cache` neste processo."""
     for cache in _caches:
         cache.clear()
 
 
-def em_cache[**P, R](fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+def em_cache[**P, R](funcao: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
     """Guarda o resultado (inclusive None) por argumentos, pela validade configurada."""
+    # Cada função decorada tem seu dicionário: (expira_em, resultado) por argumentos.
     cache: dict[object, tuple[float, object]] = {}
     _caches.append(cache)
 
-    @functools.wraps(fn)
+    @functools.wraps(funcao)
     async def envolvida(*args: P.args, **kwargs: P.kwargs) -> R:
-        ttl = get_settings().query_cache_ttl_s
-        if ttl <= 0:
-            return await fn(*args, **kwargs)
+        # Lida a cada chamada para que os testes e o ambiente possam mudar a validade.
+        validade_s = get_settings().query_cache_ttl_s
+        if validade_s <= 0:
+            return await funcao(*args, **kwargs)
         chave = (args, tuple(sorted(kwargs.items())))
         agora = time.monotonic()
         guardado = cache.get(chave)
         if guardado is not None and guardado[0] > agora:
             return guardado[1]  # type: ignore[return-value]
-        valor = await fn(*args, **kwargs)
+        valor = await funcao(*args, **kwargs)
+        # Teto de memória simples: cheio, recomeça do zero em vez de manter ordem de uso.
         if len(cache) >= _MAX_ITENS:
             cache.clear()
-        cache[chave] = (agora + ttl, valor)
+        cache[chave] = (agora + validade_s, valor)
         return valor
 
     return envolvida

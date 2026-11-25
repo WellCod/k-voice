@@ -88,7 +88,7 @@ class ApiToken(Base):
 
     @property
     def scopes_list(self) -> list[str]:
-        return [s for s in self.scopes.split(",") if s]
+        return [escopo for escopo in self.scopes.split(",") if escopo]
 
 
 class Voice(Base):
@@ -128,7 +128,10 @@ class Voice(Base):
 
     @staticmethod
     def filtro_visivel(client_id: uuid.UUID, admin: bool = False) -> ColumnElement[bool]:
-        """Mesma regra de `visivel_para`, para consultas de listagem."""
+        """Mesma regra de `visivel_para`, para consultas de listagem.
+
+        Não filtra `is_active`: quem consulta acrescenta essa condição.
+        """
         if admin:
             return true()
         return or_(Voice.client_id.is_(None), Voice.client_id == client_id)

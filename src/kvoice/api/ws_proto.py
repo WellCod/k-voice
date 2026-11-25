@@ -39,5 +39,6 @@ _WsClientMsg = Annotated[
 _adapter: TypeAdapter[StartMsg | TextMsg | CancelMsg | EndMsg] = TypeAdapter(_WsClientMsg)
 
 
-def parse_client_msg(raw: str) -> StartMsg | TextMsg | CancelMsg | EndMsg:
-    return _adapter.validate_json(raw)
+def parse_client_msg(mensagem_json: str) -> StartMsg | TextMsg | CancelMsg | EndMsg:
+    """Valida a mensagem do cliente pelo campo `type`; erro sai como ValidationError."""
+    return _adapter.validate_json(mensagem_json)

@@ -36,9 +36,15 @@ class AudioChunk:
 def fatiar_pcm(
     data: bytes, sample_rate: int, chunk_samples: int, textos_concluidos: int = 0
 ) -> list[AudioChunk]:
-    """Divide PCM em chunks; o último carrega textos_concluidos (vazio vira um chunk vazio)."""
-    step = chunk_samples * 2
-    partes = [data[i : i + step] for i in range(0, len(data), step)] or [b""]
+    """Divide PCM em chunks; o último carrega textos_concluidos (vazio vira um chunk vazio).
+
+    PCM vazio ainda gera um chunk, para que o `textos_concluidos` da frase chegue ao
+    WebSocket mesmo sem áudio.
+    """
+    bytes_por_chunk = chunk_samples * 2  # 16 bits por amostra
+    partes = [
+        data[inicio : inicio + bytes_por_chunk] for inicio in range(0, len(data), bytes_por_chunk)
+    ] or [b""]
     return [
         AudioChunk(
             data=parte,

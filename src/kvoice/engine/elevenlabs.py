@@ -19,23 +19,24 @@ class ElevenLabsEngine:
 
     def __init__(self, api_key: str) -> None:
         try:
-            from elevenlabs import ElevenLabs as _EL
+            from elevenlabs import ElevenLabs as ClienteElevenLabs
         except ImportError as exc:
             raise ImportError("elevenlabs não instalado; instale com: uv add elevenlabs") from exc
-        self._client = _EL(api_key=api_key)
+        self._client = ClienteElevenLabs(api_key=api_key)
         self._active = 0
 
     def capacity(self) -> Capacity:
         return Capacity(active_streams=self._active, queued=0, rtf_recent=None)
 
     def _convert_sync(self, voice_id: str, text: str) -> bytes:
-        audio_iter = self._client.text_to_speech.stream(
+        """Chamada bloqueante à API; devolve o PCM 24 kHz da frase inteira."""
+        pedacos_de_audio = self._client.text_to_speech.stream(
             voice_id=voice_id,
             text=text,
             model_id="eleven_turbo_v2_5",
             output_format="pcm_24000",
         )
-        return b"".join(audio_iter)
+        return b"".join(pedacos_de_audio)
 
     async def stream(
         self,

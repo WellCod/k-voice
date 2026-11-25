@@ -130,43 +130,44 @@ ENTRADAS: list[tuple[str, str, bool]] = [
 
 
 def post(base_url: str, token: str, entry: tuple[str, str, bool]) -> str:
+    """Cadastra uma entrada global. Devolve "ok", "skip (status): corpo" ou "err: motivo"."""
     term, expansion, is_regex = entry
     payload = json.dumps({"term": term, "expansion": expansion, "is_regex": is_regex}).encode()
-    req = urllib.request.Request(
+    requisicao = urllib.request.Request(
         f"{base_url}/admin/pronunciation",
         data=payload,
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            resp.read()
+        with urllib.request.urlopen(requisicao, timeout=10) as resposta:
+            resposta.read()
         return "ok"
-    except urllib.error.HTTPError as e:
-        body = e.read().decode(errors="replace")[:120]
-        return f"skip ({e.code}): {body}"
-    except Exception as e:
-        return f"err: {e}"
+    except urllib.error.HTTPError as erro_http:
+        corpo = erro_http.read().decode(errors="replace")[:120]
+        return f"skip ({erro_http.code}): {corpo}"
+    except Exception as erro:
+        return f"err: {erro}"
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Seed global pronunciation dictionary")
-    p.add_argument("--token", required=True, help="API token com escopo admin")
-    p.add_argument("--base-url", default="http://localhost:8003")
-    args = p.parse_args()
+    parser = argparse.ArgumentParser(description="Seed global pronunciation dictionary")
+    parser.add_argument("--token", required=True, help="API token com escopo admin")
+    parser.add_argument("--base-url", default="http://localhost:8003")
+    args = parser.parse_args()
 
     ok = skip = err = 0
     for entry in ENTRADAS:
-        result = post(args.base_url, args.token, entry)
-        if result == "ok":
+        resultado = post(args.base_url, args.token, entry)
+        if resultado == "ok":
             ok += 1
             print(f"  ✓ {entry[0]}")
-        elif result.startswith("skip"):
+        elif resultado.startswith("skip"):
             skip += 1
-            print(f"  ~ {entry[0]} — {result}")
+            print(f"  ~ {entry[0]} — {resultado}")
         else:
             err += 1
-            print(f"  ✗ {entry[0]} — {result}")
+            print(f"  ✗ {entry[0]} — {resultado}")
 
     print(f"\n{ok} adicionadas, {skip} ignoradas, {err} erros.")
 

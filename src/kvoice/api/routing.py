@@ -40,6 +40,7 @@ class RoutingDecision:
 
 @em_cache
 async def _buscar_regra(client_id: uuid.UUID) -> RoutingRule | None:
+    """Regra ativa do cliente, ou None (o cliente segue o padrão: só k-voice)."""
     async with session_factory()() as db:
         result = await db.execute(
             select(RoutingRule)
@@ -58,6 +59,7 @@ def _voz_elevenlabs(
     que o recusa e derruba a fala justamente no pico, quando o fallback entra.
     """
     if mapping_json:
+        # Mapa malformado no banco não derruba a fala: vale como se não houvesse mapa.
         try:
             mapping: dict[str, str] = json.loads(mapping_json)
         except (json.JSONDecodeError, TypeError):
@@ -68,6 +70,8 @@ def _voz_elevenlabs(
 
 
 def _eleven() -> TTSEngine | None:
+    """Motor da ElevenLabs, ou None quando não está configurado."""
+    # Import tardio: o motor da ElevenLabs só é carregado quando o roteamento precisa dele.
     from kvoice.engine.elevenlabs import get_elevenlabs_engine
 
     return get_elevenlabs_engine()
@@ -113,8 +117,10 @@ async def decide_engine(
         use_kvoice = random.random() < rule.kvoice_pct
 
     if use_kvoice and kvoice is not None:
-        cap = kvoice.capacity()
-        if cap.queued < _ADMISSION_MAX_QUEUE:
+        # Mesmo limite da admissão do motor: com a fila cheia, a fala vai para o fallback
+        # em vez de esperar.
+        capacidade = kvoice.capacity()
+        if capacidade.queued < _ADMISSION_MAX_QUEUE:
             return RoutingDecision(
                 engine=kvoice,
                 engine_name=kvoice.name,
@@ -145,8 +151,8 @@ async def decide_engine(
 
     # ElevenLabs indisponível ou sem voz equivalente → cai no k-voice se possível
     if kvoice is not None:
-        cap = kvoice.capacity()
-        if cap.queued < _ADMISSION_MAX_QUEUE:
+        capacidade = kvoice.capacity()
+        if capacidade.queued < _ADMISSION_MAX_QUEUE:
             return RoutingDecision(
                 engine=kvoice,
                 engine_name=kvoice.name,
