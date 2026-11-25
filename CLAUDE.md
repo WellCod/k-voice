@@ -49,6 +49,12 @@ chore(ci): cache do uv no workflow
 
 Commits, PRs, comentários e docs em português. Direto, sem preâmbulo. Sem comentário que repete o código, sem docstring em função trivial.
 
+## Código legível
+
+- Nomes autodescritivos para variáveis, parâmetros e funções: `trecho`, `centavos`, `tempo_inicio`, não `m`, `c`, `t0`. Letra solta só como índice de laço curto e óbvio.
+- Comentário em todo bloco ou função cuja intenção não sai do nome: o porquê, a regra de negócio, o caso de borda, a ordem que importa. Função não trivial ganha docstring curta dizendo o que faz e o que devolve.
+- Comentário explica o que o código não diz; não narra linha a linha o que ele já diz.
+
 ## Stack
 
 - Python 3.12, uv, FastAPI, uvicorn, pydantic-settings, SQLAlchemy 2 + Alembic, Postgres.
